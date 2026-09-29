@@ -1,6 +1,7 @@
 import pytest
 
 from app.data import Venue
+from app.filters import PlaceFilters
 from app.search import SearchService, distance_m
 
 
@@ -13,7 +14,9 @@ class FakeProvider:
         longitude: float,
         radius_m: int,
         limit: int,
+        filters: PlaceFilters | None = None,
     ) -> list[Venue]:
+        self.nearby_filters = filters
         del category, latitude, longitude, radius_m, limit
         return [
             Venue(
@@ -44,7 +47,9 @@ class FakeProvider:
         category: str,
         relation_id: int,
         limit: int,
+        filters: PlaceFilters | None = None,
     ) -> list[Venue]:
+        self.area_filters = filters
         del category, relation_id, limit
         return [
             Venue(
@@ -107,3 +112,38 @@ async def test_district_search_sorts_by_name_and_clears_distance() -> None:
     assert [venue.id for venue in venues] == ["a", "z"]
     assert all(venue.district == "Дзержинский" for venue in venues)
     assert all(venue.distance_m is None for venue in venues)
+
+
+@pytest.mark.asyncio
+async def test_search_passes_filters_to_nearby_provider() -> None:
+    provider = FakeProvider()
+    service = SearchService(provider)
+    filters = PlaceFilters(outdoor_seating=True, wifi=True)
+
+    await service.nearby(
+        category="cafe",
+        latitude=58.01046,
+        longitude=56.25017,
+        radius_m=5000,
+        limit=5,
+        filters=filters,
+    )
+
+    assert provider.nearby_filters == filters
+
+
+@pytest.mark.asyncio
+async def test_search_passes_filters_to_area_provider() -> None:
+    provider = FakeProvider()
+    service = SearchService(provider)
+    filters = PlaceFilters(wifi=True)
+
+    await service.in_district(
+        category="cafe",
+        relation_id=1_268_696,
+        district_name="Дзержинский",
+        limit=5,
+        filters=filters,
+    )
+
+    assert provider.area_filters == filters
