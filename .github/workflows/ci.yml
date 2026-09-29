@@ -26,4 +26,12 @@ jobs:
       - run: docker compose config --quiet
       - run: docker compose build bot
       - run: docker image inspect permplaces:local --format '{{json .Config.Healthcheck}}' | grep -q '/health/ready'
+      - run: test "$(docker image inspect permplaces:local --format '{{.Config.User}}')" = "10001:10001"
+      - run: test "$(docker compose run --rm --no-deps bot id -u)" = "10001"
+      - run: docker compose run --rm --no-deps bot python -c "from pathlib import Path; p=Path('/app/data/ci-write-test'); p.write_text('ok'); p.unlink(); print('data-write-ok')"
+      - run: |
+          if docker compose run --rm --no-deps bot sh -c 'touch /app/should-not-write'; then
+            echo "read-only root filesystem check unexpectedly succeeded"
+            exit 1
+          fi
       - run: docker compose run --rm --no-deps bot python -c "import app.main; print('compose-smoke-ok')"
