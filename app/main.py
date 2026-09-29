@@ -9,6 +9,7 @@ from app.bot import router
 from app.config import load_settings
 from app.providers.overpass import OverpassProvider
 from app.search import SearchService
+from app.storage import FavoritesRepository
 
 
 async def main() -> None:
@@ -27,9 +28,15 @@ async def main() -> None:
         timeout_seconds=settings.overpass_timeout_seconds,
     )
     search_service = SearchService(provider)
+    favorites_repository = FavoritesRepository(settings.database_path)
+    await favorites_repository.initialize()
 
     try:
-        await dispatcher.start_polling(bot, search_service=search_service)
+        await dispatcher.start_polling(
+            bot,
+            search_service=search_service,
+            favorites_repository=favorites_repository,
+        )
     finally:
         await provider.close()
         await bot.session.close()
