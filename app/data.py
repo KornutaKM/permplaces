@@ -16,6 +16,7 @@ class Venue:
     district: str | None = None
     distance_m: int | None = None
     opening_hours: str | None = None
+    is_open_now: bool | None = None
     phone: str | None = None
     website: str | None = None
     cuisine: tuple[str, ...] = ()
