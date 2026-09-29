@@ -1,7 +1,15 @@
 import httpx
 import pytest
 
-from app.providers.overpass import OverpassProvider, build_overpass_query
+from app.providers.overpass import OverpassProvider, build_area_query, build_overpass_query
+
+
+def test_build_area_query_uses_relation_boundary() -> None:
+    query = build_area_query(category="restaurant", relation_id=1_268_697)
+
+    assert "rel(1268697);" in query
+    assert "map_to_area -> .searchArea;" in query
+    assert 'nwr(area.searchArea)["amenity"="restaurant"]' in query
 
 
 def test_build_query_uses_radius_location_and_category() -> None:
@@ -68,3 +76,39 @@ async def test_provider_parses_node_and_way_center() -> None:
     assert venues[0].source_id == "node/101"
     assert venues[0].cuisine == ("coffee_shop", "breakfast")
     assert venues[1].source_url.endswith("/way/202")
+
+
+@pytest.mark.asyncio
+async def test_provider_searches_inside_relation_area() -> None:
+    async def handler(request: httpx.Request) -> httpx.Response:
+        body = (await request.aread()).decode()
+        assert "rel%281268699%29" in body or "rel(1268699)" in body
+        assert "map_to_area" in body
+        return httpx.Response(
+            200,
+            json={
+                "elements": [
+                    {
+                        "type": "node",
+                        "id": 303,
+                        "lat": 57.98,
+                        "lon": 56.25,
+                        "tags": {"name": "District Cafe", "amenity": "cafe"},
+                    }
+                ]
+            },
+        )
+
+    client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
+    provider = OverpassProvider(endpoint="https://example.test/api", client=client)
+
+    venues = await provider.search_in_area(
+        category="cafe",
+        relation_id=1_268_699,
+        limit=5,
+    )
+
+    await client.aclose()
+
+    assert len(venues) == 1
+    assert venues[0].name == "District Cafe"
