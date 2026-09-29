@@ -9,6 +9,7 @@ from aiogram.types import CallbackQuery, Message, ReplyKeyboardRemove
 from app.data import Venue
 from app.providers.overpass import ProviderError
 from app.search import SearchService
+from app.storage import FavoritesRepository
 from app.ui import (
     CATEGORY_LABELS,
     DISTRICTS,
@@ -241,9 +242,37 @@ async def scenarios(message: Message) -> None:
 
 
 @router.message(F.text == "❤️ Избранное")
-async def favorites(message: Message) -> None:
+async def favorites(
+    message: Message,
+    state: FSMContext,
+    favorites_repository: FavoritesRepository,
+) -> None:
+    if message.from_user is None:
+        return
+
+    venues = await favorites_repository.list_for_user(user_id=message.from_user.id)
+    if not venues:
+        await message.answer(
+            "❤️ <b>Избранное пока пусто.</b>\n\n"
+            "Откройте найденное место и нажмите «❤️ В избранное»."
+        )
+        return
+
+    await state.update_data(
+        results=[asdict(venue) for venue in venues],
+        result_index=0,
+        category="favorites",
+    )
+    venue = venues[0]
     await message.answer(
-        "❤️ <b>Избранное</b>\n\nПерсистентное хранение избранного — следующий этап."
+        "❤️ <b>Избранное</b>\n\n"
+        + render_venue_card(venue, position=1, total=len(venues)),
+        reply_markup=results_keyboard(
+            venue.id,
+            can_previous=False,
+            can_next=len(venues) > 1,
+        ),
+        disable_web_page_preview=True,
     )
 
 
@@ -358,8 +387,58 @@ async def venue_detail(callback: CallbackQuery, state: FSMContext) -> None:
 
 
 @router.callback_query(F.data.startswith("favorite:"))
-async def favorite(callback: CallbackQuery) -> None:
-    await callback.answer("Сохранение избранного подключим следующим этапом ❤️")
+async def favorite(
+    callback: CallbackQuery,
+    state: FSMContext,
+    favorites_repository: FavoritesRepository,
+) -> None:
+    if not callback.data:
+        return
+
+    data = await state.get_data()
+    results = data.get("results")
+    if not isinstance(results, list):
+        await callback.answer("Карточка устарела. Запустите поиск снова.")
+        return
+
+    venue_id = callback.data.split(":", 1)[1]
+    dict_results = [item for item in results if isinstance(item, dict)]
+    venue = _find_result(dict_results, venue_id)
+    if venue is None:
+        await callback.answer("Карточка устарела. Запустите поиск снова.")
+        return
+
+    saved = await favorites_repository.toggle(
+        user_id=callback.from_user.id,
+        venue=venue,
+    )
+    await callback.answer(
+        "Добавлено в избранное ❤️" if saved else "Удалено из избранного"
+    )
+
+    if saved or data.get("category") != "favorites":
+        return
+
+    updated_results = [
+        item
+        for item in dict_results
+        if item.get("id") != venue_id
+    ]
+    if not updated_results:
+        await state.update_data(results=[], result_index=0)
+        if callback.message:
+            await callback.message.edit_text(
+                "❤️ <b>Избранное пока пусто.</b>\n\n"
+                "Сохраните новое место из результатов поиска."
+            )
+        return
+
+    index = data.get("result_index", 0)
+    if not isinstance(index, int):
+        index = 0
+    index = min(index, len(updated_results) - 1)
+    await state.update_data(results=updated_results, result_index=index)
+    await _edit_current_result(callback, state)
 
 
 @router.callback_query(F.data.startswith("route:"))

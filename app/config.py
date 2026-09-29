@@ -9,6 +9,7 @@ class Settings(BaseSettings):
         alias="OVERPASS_URL",
     )
     overpass_timeout_seconds: float = Field(default=20.0, alias="OVERPASS_TIMEOUT_SECONDS")
+    database_path: str = Field(default="data/permplaces.db", alias="DATABASE_PATH")
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
