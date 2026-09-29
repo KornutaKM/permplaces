@@ -4,7 +4,7 @@ Telegram-ассистент для поиска кафе, ресторанов, 
 
 ## Статус
 
-Версия 0.2 подключает реальный поиск заведений рядом с пользователем через OpenStreetMap/Overpass.
+Версия 0.3 подключает реальный поиск через OpenStreetMap/Overpass и постоянное пользовательское избранное.
 
 Рабочий вертикальный сценарий:
 
@@ -37,6 +37,7 @@ OpenStreetMap / Overpass
 - обязательная атрибуция © OpenStreetMap contributors / ODbL;
 - текстовый поиск по поддерживаемым категориям;
 - часть готовых сценариев;
+- ❤️ постоянное избранное в SQLite, изолированное по Telegram user ID;
 - Ruff + pytest;
 - Docker build/smoke CI.
 
@@ -80,6 +81,7 @@ pip install -e ".[dev]"
 BOT_TOKEN=your_telegram_bot_token
 OVERPASS_URL=https://overpass-api.de/api/interpreter
 OVERPASS_TIMEOUT_SECONDS=20
+DATABASE_PATH=data/permplaces.db
 ```
 
 Запуск:
@@ -117,7 +119,7 @@ Provider abstraction позволяет позже добавить 2GIS или 
 ## Следующие этапы
 
 1. Точный поиск по районам Перми.
-2. Персистентное избранное.
-3. Второй provider для рейтингов/отзывов/чека.
+2. Точный поиск по районам Перми.
+2. Второй provider для рейтингов/отзывов/чека.
 4. Дедупликация одного заведения между источниками.
 5. Улучшенные сценарии «на свидание», «с детьми», «поработать».
