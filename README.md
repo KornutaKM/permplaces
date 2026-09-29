@@ -56,7 +56,7 @@ Telegram-ассистент для поиска кафе, ресторанов, 
 - опциональный Foursquare Places API (New) provider при заданном `FOURSQUARE_API_KEY`;
 - provider-backed Foursquare rating, `stats.total_ratings` и price tier 1–4;
 - явная rating scale, чтобы оценки разных провайдеров нельзя было спутать;
-- provider-aware source attribution в карточке;
+- provider-aware source attribution в карточке, включая `Powered by Foursquare` для Foursquare Places Data;
 - `/health/live` и `/health/ready` внутри контейнера;
 - Docker HEALTHCHECK, который показывает `healthy` только после runtime + SQLite initialization;
 - hardened container runtime: UID 10001, read-only root FS, `cap_drop: ALL`, `no-new-privileges`, resource limits.

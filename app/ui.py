@@ -368,7 +368,7 @@ def render_venue_card(venue: Venue, *, position: int = 1, total: int = 1) -> str
     if "2gis" in providers:
         attribution.append("2ГИС")
     if "foursquare" in providers:
-        attribution.append('<a href="https://foursquare.com/">Foursquare</a>')
+        attribution.append('<a href="https://foursquare.com/">Powered by Foursquare</a>')
 
     if attribution:
         lines.extend(["", "<i>Источники: " + "; ".join(attribution) + "</i>"])

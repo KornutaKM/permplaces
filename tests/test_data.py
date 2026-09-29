@@ -341,4 +341,4 @@ def test_foursquare_rating_card_keeps_ten_point_scale_and_attribution() -> None:
     card = render_venue_card(venue)
 
     assert "⭐ 8.7/10 (321)" in card
-    assert "Foursquare" in card
+    assert "Powered by Foursquare" in card
