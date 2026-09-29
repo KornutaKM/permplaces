@@ -231,3 +231,21 @@ async def test_open_now_filter_is_fail_closed() -> None:
 
     assert [venue.id for venue in venues] == ["open"]
     assert venues[0].is_open_now is True
+
+
+
+@pytest.mark.asyncio
+async def test_open_late_filter_uses_opening_hours_fail_closed() -> None:
+    service = SearchService(OpenNowProvider())
+
+    venues = await service.nearby(
+        category="cafe",
+        latitude=58.01046,
+        longitude=56.25017,
+        radius_m=5000,
+        limit=5,
+        filters=PlaceFilters(open_late=True),
+    )
+
+    assert [venue.id for venue in venues] == ["open"]
+    assert venues[0].is_open_late is True

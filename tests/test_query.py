@@ -153,3 +153,31 @@ def test_plan_open_now_can_enable_and_disable_state() -> None:
 
     assert enable.updates["filter_open_now"] is True
     assert disable.updates["filter_open_now"] is False
+
+
+
+def test_parse_family_and_late_intents() -> None:
+    family = parse_search_query("ресторан с детьми")
+    late = parse_search_query("кафе поздно вечером")
+
+    assert family.category == "restaurant"
+    assert family.family_friendly is True
+    assert family.filters.family_friendly is True
+
+    assert late.category == "cafe"
+    assert late.open_late is True
+    assert late.filters.open_late is True
+
+
+def test_plan_family_and_late_can_enable_state() -> None:
+    family = plan_search_query(
+        parse_search_query("ресторан для детей"),
+        {"filter_family_friendly": False},
+    )
+    late = plan_search_query(
+        parse_search_query("бар открыто в 23"),
+        {"filter_open_late": False},
+    )
+
+    assert family.updates["filter_family_friendly"] is True
+    assert late.updates["filter_open_late"] is True

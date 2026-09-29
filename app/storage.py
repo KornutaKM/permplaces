@@ -75,6 +75,7 @@ class FavoritesRepository:
                 venue,
                 distance_m=None,
                 is_open_now=None,
+                is_open_late=None,
             )
             payload = json.dumps(
                 asdict(persistent_venue),

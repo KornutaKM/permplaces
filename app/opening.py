@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime
 from enum import StrEnum
+from zoneinfo import ZoneInfo
 
 from opening_hours import (
     InvalidCoordinatesError,
@@ -9,6 +10,9 @@ from opening_hours import (
     ParserError,
     UnknownCountryError,
 )
+
+PERM_TIMEZONE = ZoneInfo("Asia/Yekaterinburg")
+LATE_EVENING_HOUR = 23
 
 
 class OpeningState(StrEnum):
@@ -48,3 +52,18 @@ def opening_state(
         RuntimeError,
     ):
         return OpeningState.UNKNOWN
+
+
+
+def late_evening_reference(now: datetime | None = None) -> datetime:
+    local_now = (
+        datetime.now(PERM_TIMEZONE)
+        if now is None
+        else now.astimezone(PERM_TIMEZONE)
+    )
+    return local_now.replace(
+        hour=LATE_EVENING_HOUR,
+        minute=0,
+        second=0,
+        microsecond=0,
+    )

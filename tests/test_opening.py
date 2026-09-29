@@ -1,7 +1,7 @@
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
-from app.opening import OpeningState, opening_state
+from app.opening import OpeningState, late_evening_reference, opening_state
 
 PERM_LAT = 58.01046
 PERM_LON = 56.25017
@@ -63,3 +63,12 @@ def test_invalid_or_missing_expression_fails_closed_to_unknown() -> None:
         )
         is OpeningState.UNKNOWN
     )
+
+
+
+def test_late_evening_reference_is_23_00_perm_time() -> None:
+    reference = late_evening_reference(FIXED_TIME)
+
+    assert reference.hour == 23
+    assert reference.minute == 0
+    assert reference.utcoffset().total_seconds() == 5 * 60 * 60

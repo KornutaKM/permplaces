@@ -25,6 +25,33 @@ def test_build_query_adds_opening_hours_presence_for_open_now() -> None:
     assert '["opening_hours"]' in query
 
 
+def test_build_query_adds_opening_hours_presence_for_late_evening() -> None:
+    query = build_overpass_query(
+        category="restaurant",
+        latitude=58.01046,
+        longitude=56.25017,
+        radius_m=1500,
+        filters=PlaceFilters(open_late=True),
+    )
+
+    assert '["opening_hours"]' in query
+
+
+def test_build_query_adds_family_friendly_union() -> None:
+    query = build_overpass_query(
+        category="food_drink",
+        latitude=58.01046,
+        longitude=56.25017,
+        radius_m=3000,
+        filters=PlaceFilters(family_friendly=True),
+    )
+
+    assert query.count("nwr(around:") == 3
+    assert '["kids_area"~"^(yes|designated|limited)$",i]' in query
+    assert '["highchair"~"^(yes|[1-9][0-9]*)$",i]' in query
+    assert '["changing_table"~"^(yes|limited)$",i]' in query
+
+
 def test_build_query_adds_osm_native_filters() -> None:
     query = build_overpass_query(
         category="cafe",
@@ -102,6 +129,9 @@ async def test_provider_parses_node_and_way_center() -> None:
                             "contact:website": "https://coffee.example",
                             "outdoor_seating": "yes",
                             "internet_access": "wlan",
+                            "kids_area": "designated",
+                            "highchair": "2",
+                            "changing_table": "limited",
                         },
                     },
                     {
@@ -136,6 +166,9 @@ async def test_provider_parses_node_and_way_center() -> None:
     assert venues[0].website == "https://coffee.example"
     assert venues[0].outdoor_seating is True
     assert venues[0].wifi is True
+    assert venues[0].kids_area is True
+    assert venues[0].highchair is True
+    assert venues[0].changing_table is True
     assert venues[1].outdoor_seating is None
     assert venues[1].wifi is None
     assert venues[1].source_url.endswith("/way/202")

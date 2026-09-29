@@ -73,6 +73,8 @@ def filters_keyboard(
     outdoor_seating: bool = False,
     wifi: bool = False,
     open_now: bool = False,
+    family_friendly: bool = False,
+    open_late: bool = False,
 ) -> InlineKeyboardMarkup:
     if location_scope:
         radius_buttons = []
@@ -110,6 +112,16 @@ def filters_keyboard(
                 InlineKeyboardButton(
                     text=("✅ " if open_now else "") + "🟢 Открыто сейчас",
                     callback_data="filter:open:toggle",
+                ),
+                InlineKeyboardButton(
+                    text=("✅ " if open_late else "") + "🌙 Открыто в 23:00",
+                    callback_data="filter:late:toggle",
+                ),
+            ],
+            [
+                InlineKeyboardButton(
+                    text=("✅ " if family_friendly else "") + "👨‍👩‍👧 Для детей",
+                    callback_data="filter:family:toggle",
                 )
             ],
             [InlineKeyboardButton(text="🧹 Сбросить фильтры", callback_data="filter:reset:all")],
@@ -234,6 +246,9 @@ def render_venue_card(venue: Venue, *, position: int = 1, total: int = 1) -> str
     if venue.is_open_now:
         lines.append("🟢 Открыто сейчас")
 
+    if venue.is_open_late:
+        lines.append("🌙 Открыто сегодня в 23:00")
+
     if venue.opening_hours:
         lines.append(f"🕐 {escape(venue.opening_hours)}")
 
@@ -246,6 +261,16 @@ def render_venue_card(venue: Venue, *, position: int = 1, total: int = 1) -> str
 
     if venue.wifi:
         lines.append("📶 Есть Wi-Fi")
+
+    family_features: list[str] = []
+    if venue.kids_area:
+        family_features.append("детская зона")
+    if venue.highchair:
+        family_features.append("детский стульчик")
+    if venue.changing_table:
+        family_features.append("пеленальный столик")
+    if family_features:
+        lines.append("👨‍👩‍👧 Для детей: " + ", ".join(family_features))
 
     if venue.phone:
         lines.append(f"☎️ {escape(venue.phone)}")
