@@ -51,6 +51,20 @@ def test_build_area_query_adds_wifi_filter() -> None:
     assert '["wifi"~"^(yes|free)$",i]' in query
 
 
+def test_surprise_category_searches_across_food_and_drink_amenities() -> None:
+    query = build_overpass_query(
+        category="food_drink",
+        latitude=58.01046,
+        longitude=56.25017,
+        radius_m=3000,
+    )
+
+    assert (
+        '["amenity"~"^(restaurant|cafe|bar|pub|fast_food|ice_cream)$"]'
+        in query
+    )
+
+
 def test_build_query_uses_radius_location_and_category() -> None:
     query = build_overpass_query(
         category="cafe",
