@@ -13,6 +13,7 @@ class SearchQueryPlan:
     requires_location: bool = False
     radius_ignored: bool = False
 
+
 @dataclass(frozen=True, slots=True)
 class ParsedSearchQuery:
     category: str | None
@@ -22,6 +23,7 @@ class ParsedSearchQuery:
     district_key: str | None = None
     whole_city: bool = False
     nearby: bool = False
+    invalid_radius: bool = False
 
     @property
     def filters(self) -> PlaceFilters:
@@ -82,10 +84,10 @@ def _feature_intent(
     return None
 
 
-def _parse_radius(text: str) -> int | None:
+def _parse_radius(text: str) -> tuple[int | None, bool]:
     match = _RADIUS_RE.search(text)
     if match is None:
-        return None
+        return None, False
 
     value = float(match.group("value").replace(",", "."))
     unit = match.group("unit").casefold()
@@ -93,8 +95,8 @@ def _parse_radius(text: str) -> int | None:
 
     # Keep free-text Overpass searches bounded and useful.
     if not 100 <= meters <= 10_000:
-        return None
-    return meters
+        return None, True
+    return meters, False
 
 
 def parse_search_query(text: str) -> ParsedSearchQuery:
@@ -116,6 +118,7 @@ def parse_search_query(text: str) -> ParsedSearchQuery:
         ),
         None,
     )
+    radius_m, invalid_radius = _parse_radius(normalized)
 
     return ParsedSearchQuery(
         category=category,
@@ -129,10 +132,11 @@ def parse_search_query(text: str) -> ParsedSearchQuery:
             positive=_WIFI_PATTERNS,
             negative=_WIFI_NEGATIVE_PATTERNS,
         ),
-        radius_m=_parse_radius(normalized),
+        radius_m=radius_m,
         district_key=district_key,
         whole_city=_contains_any(normalized, _WHOLE_CITY_PATTERNS),
         nearby=_contains_any(normalized, _NEARBY_PATTERNS),
+        invalid_radius=invalid_radius,
     )
 
 
