@@ -9,17 +9,9 @@ from app.filters import PlaceFilters
 
 @dataclass(frozen=True, slots=True)
 class SearchQueryPlan:
-    def __init__(
-        self,
-        *,
-        updates: dict[str, object],
-        requires_location: bool = False,
-        radius_ignored: bool = False,
-    ) -> None:
-        self.updates = updates
-        self.requires_location = requires_location
-        self.radius_ignored = radius_ignored
-
+    updates: dict[str, object]
+    requires_location: bool = False
+    radius_ignored: bool = False
 
 @dataclass(frozen=True, slots=True)
 class ParsedSearchQuery:
@@ -142,7 +134,6 @@ def parse_search_query(text: str) -> ParsedSearchQuery:
         whole_city=_contains_any(normalized, _WHOLE_CITY_PATTERNS),
         nearby=_contains_any(normalized, _NEARBY_PATTERNS),
     )
-
 
 
 def plan_search_query(
