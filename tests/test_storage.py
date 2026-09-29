@@ -2,7 +2,7 @@ import asyncio
 
 import pytest
 
-from app.data import Venue
+from app.data import FieldSource, SourceRef, Venue
 from app.storage import FavoritesRepository
 
 
@@ -110,3 +110,40 @@ async def test_concurrent_double_toggle_is_serialized(tmp_path) -> None:
 
     assert sorted(results) == [False, True]
     assert await repository.list_for_user(user_id=5) == []
+
+
+
+@pytest.mark.asyncio
+async def test_favorites_round_trip_multi_provider_provenance(tmp_path) -> None:
+    database_path = tmp_path / "permplaces.db"
+    venue = Venue(
+        id="osm:node/500",
+        name="Объединённое место",
+        category="cafe",
+        category_label="Кофейня",
+        latitude=58.01,
+        longitude=56.25,
+        source="osm",
+        source_id="node/500",
+        source_refs=(
+            SourceRef("osm", "node/500", "https://www.openstreetmap.org/node/500"),
+            SourceRef("catalog", "abc-500", "https://example.test/place/abc-500"),
+        ),
+        field_sources=(
+            FieldSource("name", "osm", "node/500"),
+            FieldSource("rating", "catalog", "abc-500"),
+        ),
+        rating=4.8,
+        review_count=150,
+    )
+
+    repository = FavoritesRepository(str(database_path))
+    await repository.initialize()
+    assert await repository.toggle(user_id=50, venue=venue) is True
+
+    restored = (await repository.list_for_user(user_id=50))[0]
+
+    assert restored.source_refs == venue.source_refs
+    assert restored.field_sources == venue.field_sources
+    assert restored.rating == 4.8
+    assert restored.review_count == 150
