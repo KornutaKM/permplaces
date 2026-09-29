@@ -2,6 +2,20 @@ from dataclasses import dataclass
 
 
 @dataclass(frozen=True, slots=True)
+class SourceRef:
+    provider: str
+    source_id: str
+    source_url: str | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class FieldSource:
+    field_name: str
+    provider: str
+    source_id: str
+
+
+@dataclass(frozen=True, slots=True)
 class Venue:
     id: str
     name: str
@@ -12,6 +26,8 @@ class Venue:
     source: str
     source_id: str
     source_url: str | None = None
+    source_refs: tuple[SourceRef, ...] = ()
+    field_sources: tuple[FieldSource, ...] = ()
     address: str | None = None
     district: str | None = None
     distance_m: int | None = None
