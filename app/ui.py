@@ -239,7 +239,12 @@ def route_keyboard(venue: Venue) -> InlineKeyboardMarkup:
 
 def share_venue_url(venue: Venue) -> str:
     source_url = _safe_http_url(venue.source_url)
-    target_url = source_url or _twogis_url(venue)
+    if source_url:
+        target_url = source_url
+    elif _twogis_source_id(venue):
+        target_url = _twogis_url(venue)
+    else:
+        target_url = _osm_point_url(venue)
 
     details = venue.address or venue.category_label
     text = venue.name if not details else f"{venue.name} — {details}"
