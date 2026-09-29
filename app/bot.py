@@ -215,7 +215,9 @@ async def ask_text_search(message: Message, state: FSMContext) -> None:
         "Например:\n"
         "• <i>кофе с Wi-Fi рядом 1 км</i>\n"
         "• <i>ресторан с верандой в Ленинском районе</i>\n"
-        "• <i>суши открыто сейчас по всей Перми</i>",
+        "• <i>суши открыто сейчас по всей Перми</i>\n"
+        "• <i>ресторан с детьми</i>\n"
+        "• <i>кафе поздно вечером</i>",
         reply_markup=ReplyKeyboardRemove(),
     )
 
