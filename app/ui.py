@@ -257,12 +257,14 @@ def share_venue_url(venue: Venue) -> str:
 
 
 def venue_keyboard(venue: Venue) -> InlineKeyboardMarkup:
-    rows: list[list[InlineKeyboardButton]] = [
-        [
-            InlineKeyboardButton(text="📍 Маршрут", callback_data=f"route:{venue.id}"),
-            InlineKeyboardButton(text="📖 Меню", callback_data=f"menu:{venue.id}"),
-        ],
+    primary_actions = [
+        InlineKeyboardButton(text="📍 Маршрут", callback_data=f"route:{venue.id}")
     ]
+    menu_url = _safe_http_url(venue.menu_url)
+    if menu_url:
+        primary_actions.append(InlineKeyboardButton(text="📖 Меню", url=menu_url))
+
+    rows: list[list[InlineKeyboardButton]] = [primary_actions]
 
     website_url = _safe_http_url(venue.website)
     if website_url:
