@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import logging
-from collections.abc import Sequence
+from collections.abc import Awaitable, Callable, Sequence
 
 from app.data import Venue
 from app.filters import PlaceFilters
@@ -58,7 +58,10 @@ class FailoverPlacesProvider:
 
         return await self._try_providers(search)
 
-    async def _try_providers(self, search) -> list[Venue]:
+    async def _try_providers(
+        self,
+        search: Callable[[PlacesProvider], Awaitable[list[Venue]]],
+    ) -> list[Venue]:
         errors: list[ProviderError] = []
 
         for index, provider in enumerate(self._providers):
