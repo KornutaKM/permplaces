@@ -22,6 +22,7 @@ _CATEGORY_FILTERS = {
     "sushi": '["amenity"~"^(restaurant|fast_food)$"]["cuisine"~"(sushi|japanese)",i]',
     "breakfast": '["amenity"~"^(cafe|restaurant)$"]["breakfast"="yes"]',
     "dessert": '["amenity"~"^(cafe|ice_cream)$"]',
+    "food_drink": '["amenity"~"^(restaurant|cafe|bar|pub|fast_food|ice_cream)$"]',
 }
 
 _CATEGORY_NAMES = {
@@ -33,6 +34,7 @@ _CATEGORY_NAMES = {
     "sushi": "Суши",
     "breakfast": "Завтраки",
     "dessert": "Десерты",
+    "food_drink": "Заведение",
 }
 
 
@@ -186,7 +188,7 @@ class OverpassProvider:
         self._owns_client = client is None
         self._client = client or httpx.AsyncClient(
             timeout=httpx.Timeout(timeout_seconds),
-            headers={"User-Agent": "PermPlaces/0.8 (+https://github.com/KornutaKM/permplaces)"},
+            headers={"User-Agent": "PermPlaces/0.9 (+https://github.com/KornutaKM/permplaces)"},
         )
 
     async def close(self) -> None:
