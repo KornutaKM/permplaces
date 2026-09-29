@@ -1,5 +1,5 @@
 from html import escape
-from urllib.parse import urlsplit
+from urllib.parse import quote, urlencode, urlsplit
 
 from aiogram.types import (
     InlineKeyboardButton,
@@ -185,6 +185,72 @@ def _safe_http_url(value: str | None) -> str | None:
     return candidate
 
 
+def _twogis_source_id(venue: Venue) -> str | None:
+    if venue.source == "2gis" and venue.source_id:
+        return venue.source_id
+    for ref in venue.source_refs:
+        if ref.provider == "2gis" and ref.source_id:
+            return ref.source_id
+    return None
+
+
+def _twogis_url(venue: Venue) -> str:
+    source_id = _twogis_source_id(venue)
+    if source_id:
+        return f"https://2gis.ru/firm/{quote(source_id, safe='')}"
+    return f"https://2gis.ru/geo/{venue.longitude:.6f},{venue.latitude:.6f}"
+
+
+def _osm_point_url(venue: Venue) -> str:
+    lat = f"{venue.latitude:.6f}"
+    lon = f"{venue.longitude:.6f}"
+    return f"https://www.openstreetmap.org/?mlat={lat}&mlon={lon}#map=18/{lat}/{lon}"
+
+
+def _google_directions_url(venue: Venue) -> str:
+    query = urlencode(
+        {
+            "api": "1",
+            "destination": f"{venue.latitude:.6f},{venue.longitude:.6f}",
+        }
+    )
+    return f"https://www.google.com/maps/dir/?{query}"
+
+
+def route_keyboard(venue: Venue) -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                InlineKeyboardButton(text="🧭 2ГИС", url=_twogis_url(venue)),
+                InlineKeyboardButton(
+                    text="🗺 Google Maps",
+                    url=_google_directions_url(venue),
+                ),
+            ],
+            [
+                InlineKeyboardButton(
+                    text="🌍 OpenStreetMap",
+                    url=_osm_point_url(venue),
+                )
+            ],
+        ]
+    )
+
+
+def share_venue_url(venue: Venue) -> str:
+    source_url = _safe_http_url(venue.source_url)
+    target_url = source_url or _twogis_url(venue)
+
+    details = venue.address or venue.category_label
+    text = venue.name if not details else f"{venue.name} — {details}"
+    return "https://t.me/share/url?" + urlencode(
+        {
+            "url": target_url,
+            "text": text,
+        }
+    )
+
+
 def venue_keyboard(venue: Venue) -> InlineKeyboardMarkup:
     rows: list[list[InlineKeyboardButton]] = [
         [
@@ -200,7 +266,7 @@ def venue_keyboard(venue: Venue) -> InlineKeyboardMarkup:
     rows.append(
         [
             InlineKeyboardButton(text="❤️ В избранное", callback_data=f"favorite:{venue.id}"),
-            InlineKeyboardButton(text="↗️ Поделиться", switch_inline_query=f"PermPlaces {venue.name}"),
+            InlineKeyboardButton(text="↗️ Поделиться", url=share_venue_url(venue)),
         ]
     )
     if venue.source_url:
