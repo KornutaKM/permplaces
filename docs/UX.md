@@ -50,21 +50,21 @@ District search remains a planned flow until exact Perm district boundaries are 
 
 ## Filters
 
-Live in v0.2:
+Live:
 
-- radius: 500 m / 1 km / 3 km / 5 km.
+- radius: 500 m / 1 km / 3 km / 5 km for “Рядом со мной”;
+- terrace / outdoor seating only when OSM explicitly provides `outdoor_seating`;
+- Wi-Fi only when OSM explicitly provides `internet_access=wlan` or compatible legacy `wifi=yes/free`.
 
-Visible but intentionally not applied until a provider can support them reliably:
+Intentionally not active yet:
 
-- price level;
-- open now;
-- terrace.
+- open now — requires semantic `opening_hours` parsing;
+- price level — no reliable OSM-wide source;
+- rating/reviews — not provided by OSM as a platform rating.
 
 Later:
 
-- rating;
 - children;
-- Wi-Fi;
 - parking;
 - cuisine;
 - delivery;
@@ -82,7 +82,8 @@ The card contains only sourced facts:
 - cuisine tags when present;
 - provider/source attribution;
 - phone when present in the provider;
-- district when known.
+- district when known;
+- terrace and Wi-Fi badges only when positively confirmed by provider tags.
 
 OSM does not supply PermPlaces with a platform rating or review count, so those fields are omitted.
 
