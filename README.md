@@ -4,7 +4,7 @@ Telegram-ассистент для поиска кафе, ресторанов, 
 
 ## Статус
 
-Версия 0.14 делает сценарии «С детьми» и «Поздно вечером» рабочими на проверяемых OSM-данных.
+Версия 0.15 закладывает multi-provider foundation: deterministic dedup, source identities и field-level provenance без изменения текущего OSM UX.
 
 Рабочие вертикальные сценарии:
 
@@ -47,7 +47,9 @@ Telegram-ассистент для поиска кафе, ресторанов, 
 - runtime-логи provider latency, cache hit/miss/coalescing/eviction и failover без координат пользователя;
 - ❤️ постоянное избранное в SQLite, изолированное по Telegram user ID;
 - Ruff + pytest;
-- Docker Compose build/config/smoke CI.
+- Docker Compose build/config/smoke CI;
+- multi-provider aggregation foundation с conservative dedup;
+- source-level и field-level provenance для объединённых карточек.
 
 ## Принцип данных
 
@@ -161,22 +163,23 @@ aiogram handlers
    ↓
 SearchService
    ↓
-PlacesProvider protocol
+CompositePlacesProvider
    ↓
-OverpassProvider
+Cached / failover provider adapters
    ↓
-OpenStreetMap
+OverpassProvider (+ future providers)
+   ↓
+OpenStreetMap / future catalogs
 ```
 
-Provider abstraction позволяет позже добавить 2GIS или другой источник без переписывания Telegram UX.
+Provider abstraction теперь включает deterministic aggregation и provenance, поэтому второй источник можно подключать без смешивания фактов или переписывания Telegram UX.
 
 ## Следующие этапы
 
-1. Второй provider для рейтингов/отзывов/чека.
-2. Дедупликация одного заведения между источниками.
-3. Сценарий «На свидание» после появления достаточно надёжных признаков/второго provider.
+1. Подключить второй provider для рейтингов/отзывов/чека поверх готового provenance/dedup слоя.
+2. Добавить provider-specific attribution в UI для рейтинга/отзывов.
+3. Сценарий «На свидание» после появления достаточно надёжных признаков.
 4. Production deployment profile после стабилизации локального runtime.
-5. Второй data provider и cross-provider deduplication.
 
 
 ## Overpass failover
