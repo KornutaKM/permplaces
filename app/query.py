@@ -9,11 +9,19 @@ from app.filters import PlaceFilters
 @dataclass(frozen=True, slots=True)
 class ParsedSearchQuery:
     category: str | None
-    filters: PlaceFilters
+    outdoor_seating: bool | None = None
+    wifi: bool | None = None
     radius_m: int | None = None
     district_key: str | None = None
     whole_city: bool = False
     nearby: bool = False
+
+    @property
+    def filters(self) -> PlaceFilters:
+        return PlaceFilters(
+            outdoor_seating=self.outdoor_seating is True,
+            wifi=self.wifi is True,
+        )
 
 
 _CATEGORY_PATTERNS: tuple[tuple[str, tuple[str, ...]], ...] = (
@@ -54,13 +62,17 @@ def _contains_any(text: str, patterns: tuple[str, ...]) -> bool:
     return any(pattern in text for pattern in patterns)
 
 
-def _positive_feature(
+def _feature_intent(
     text: str,
     *,
     positive: tuple[str, ...],
     negative: tuple[str, ...],
-) -> bool:
-    return _contains_any(text, positive) and not _contains_any(text, negative)
+) -> bool | None:
+    if _contains_any(text, negative):
+        return False
+    if _contains_any(text, positive):
+        return True
+    return None
 
 
 def _parse_radius(text: str) -> int | None:
@@ -100,17 +112,15 @@ def parse_search_query(text: str) -> ParsedSearchQuery:
 
     return ParsedSearchQuery(
         category=category,
-        filters=PlaceFilters(
-            outdoor_seating=_positive_feature(
-                normalized,
-                positive=_TERRACE_PATTERNS,
-                negative=_TERRACE_NEGATIVE_PATTERNS,
-            ),
-            wifi=_positive_feature(
-                normalized,
-                positive=_WIFI_PATTERNS,
-                negative=_WIFI_NEGATIVE_PATTERNS,
-            ),
+        outdoor_seating=_feature_intent(
+            normalized,
+            positive=_TERRACE_PATTERNS,
+            negative=_TERRACE_NEGATIVE_PATTERNS,
+        ),
+        wifi=_feature_intent(
+            normalized,
+            positive=_WIFI_PATTERNS,
+            negative=_WIFI_NEGATIVE_PATTERNS,
         ),
         radius_m=_parse_radius(normalized),
         district_key=district_key,
