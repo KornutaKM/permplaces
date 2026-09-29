@@ -7,6 +7,7 @@ from aiogram.enums import ParseMode
 
 from app.bot import router
 from app.config import load_settings
+from app.health import HealthServer
 from app.providers.cache import CachedPlacesProvider
 from app.providers.composite import CompositePlacesProvider
 from app.providers.failover import FailoverPlacesProvider
@@ -68,25 +69,36 @@ async def main() -> None:
     composite_provider = CompositePlacesProvider(aggregate_providers)
     search_service = SearchService(composite_provider)
     favorites_repository = FavoritesRepository(settings.database_path)
-    await favorites_repository.initialize()
-
-    logger.info(
-        "permplaces_start providers=%d overpass_endpoints=%d twogis_enabled=%s "
-        "cache_ttl_seconds=%s cache_max_entries=%d",
-        len(aggregate_providers),
-        len(settings.overpass_endpoints),
-        twogis_provider is not None,
-        settings.provider_cache_ttl_seconds,
-        settings.provider_cache_max_entries,
+    health_server = HealthServer(
+        host=settings.health_host,
+        port=settings.health_port,
     )
 
     try:
+        await health_server.start()
+        await favorites_repository.initialize()
+        health_server.state.mark_ready()
+
+        logger.info(
+            "permplaces_start providers=%d overpass_endpoints=%d twogis_enabled=%s "
+            "cache_ttl_seconds=%s cache_max_entries=%d health_port=%d",
+            len(aggregate_providers),
+            len(settings.overpass_endpoints),
+            twogis_provider is not None,
+            settings.provider_cache_ttl_seconds,
+            settings.provider_cache_max_entries,
+            settings.health_port,
+        )
+
         await dispatcher.start_polling(
             bot,
             search_service=search_service,
             favorites_repository=favorites_repository,
         )
     finally:
+        health_server.state.mark_not_ready()
+        await health_server.close()
+
         for provider_name, cache in caches:
             cache_stats = cache.stats()
             logger.info(
