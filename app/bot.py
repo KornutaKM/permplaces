@@ -59,6 +59,7 @@ def _filters_from_state(data: dict[str, object]) -> PlaceFilters:
     return PlaceFilters(
         outdoor_seating=data.get("filter_outdoor_seating") is True,
         wifi=data.get("filter_wifi") is True,
+        open_now=data.get("filter_open_now") is True,
     )
 
 
@@ -170,6 +171,7 @@ async def start(message: Message, state: FSMContext) -> None:
         radius_m=3000,
         filter_outdoor_seating=False,
         filter_wifi=False,
+        filter_open_now=False,
     )
     await message.answer(WELCOME, reply_markup=home_keyboard())
 
@@ -205,7 +207,7 @@ async def ask_text_search(message: Message, state: FSMContext) -> None:
         "Например:\n"
         "• <i>кофе с Wi-Fi рядом 1 км</i>\n"
         "• <i>ресторан с верандой в Ленинском районе</i>\n"
-        "• <i>суши по всей Перми</i>",
+        "• <i>суши открыто сейчас по всей Перми</i>",
         reply_markup=ReplyKeyboardRemove(),
     )
 
@@ -269,7 +271,8 @@ async def text_search(
     if not venues:
         await message.answer(
             "По заданным условиям ничего не найдено. "
-            "Попробуйте убрать Wi-Fi/веранду, увеличить радиус или выбрать другой район.",
+            "Попробуйте убрать Wi-Fi/веранду/«Открыто сейчас», "
+            "увеличить радиус или выбрать другой район.",
             reply_markup=categories_keyboard(),
         )
         return
@@ -354,7 +357,8 @@ async def nav_filters(callback: CallbackQuery, state: FSMContext) -> None:
     await callback.message.edit_text(
         "<b>Настройте фильтры</b>\n\n"
         f"{scope_note}\n"
-        "🌿 Веранда и 📶 Wi-Fi применяются только по явным тегам OpenStreetMap.",
+        "🌿 Веранда и 📶 Wi-Fi применяются по явным тегам OpenStreetMap.\n"
+        "🟢 «Открыто сейчас» вычисляется по OSM opening_hours с часовым поясом точки.",
         reply_markup=filters_keyboard(
             radius_m=(
                 data.get("radius_m")
@@ -364,6 +368,7 @@ async def nav_filters(callback: CallbackQuery, state: FSMContext) -> None:
             location_scope=scope != "district",
             outdoor_seating=data.get("filter_outdoor_seating") is True,
             wifi=data.get("filter_wifi") is True,
+            open_now=data.get("filter_open_now") is True,
         ),
     )
 
@@ -667,11 +672,19 @@ async def filter_selected(callback: CallbackQuery, state: FSMContext) -> None:
         await state.update_data(filter_wifi=enabled)
         await callback.answer("Wi-Fi: включено" if enabled else "Wi-Fi: выключено")
 
+    elif action == "open" and value == "toggle":
+        enabled = data.get("filter_open_now") is not True
+        await state.update_data(filter_open_now=enabled)
+        await callback.answer(
+            "Открыто сейчас: включено" if enabled else "Открыто сейчас: выключено"
+        )
+
     elif action == "reset" and value == "all":
         await state.update_data(
             radius_m=3000,
             filter_outdoor_seating=False,
             filter_wifi=False,
+            filter_open_now=False,
         )
         await callback.answer("Фильтры сброшены")
 
@@ -691,6 +704,7 @@ async def filter_selected(callback: CallbackQuery, state: FSMContext) -> None:
                 location_scope=refreshed.get("search_scope") != "district",
                 outdoor_seating=refreshed.get("filter_outdoor_seating") is True,
                 wifi=refreshed.get("filter_wifi") is True,
+                open_now=refreshed.get("filter_open_now") is True,
             )
         )
 
