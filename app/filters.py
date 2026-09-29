@@ -6,7 +6,15 @@ class PlaceFilters:
     outdoor_seating: bool = False
     wifi: bool = False
     open_now: bool = False
+    family_friendly: bool = False
+    open_late: bool = False
 
     @property
     def active(self) -> bool:
-        return self.outdoor_seating or self.wifi or self.open_now
+        return (
+            self.outdoor_seating
+            or self.wifi
+            or self.open_now
+            or self.family_friendly
+            or self.open_late
+        )
