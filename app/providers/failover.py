@@ -66,15 +66,20 @@ class FailoverPlacesProvider:
 
         for index, provider in enumerate(self._providers):
             try:
-                return await search(provider)
+                venues = await search(provider)
+                if index > 0:
+                    logger.info(
+                        "places_failover event=recovered provider_index=%d providers_total=%d",
+                        index,
+                        len(self._providers),
+                    )
+                return venues
             except ProviderError as exc:
                 errors.append(exc)
                 logger.warning(
-                    "places provider failed; trying next configured provider",
-                    extra={
-                        "provider_index": index,
-                        "providers_total": len(self._providers),
-                    },
+                    "places_failover event=provider_failed provider_index=%d providers_total=%d",
+                    index,
+                    len(self._providers),
                 )
 
         raise ProviderError(
