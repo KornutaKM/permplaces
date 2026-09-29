@@ -19,6 +19,7 @@ class ParsedSearchQuery:
     category: str | None
     outdoor_seating: bool | None = None
     wifi: bool | None = None
+    open_now: bool | None = None
     radius_m: int | None = None
     district_key: str | None = None
     whole_city: bool = False
@@ -30,6 +31,7 @@ class ParsedSearchQuery:
         return PlaceFilters(
             outdoor_seating=self.outdoor_seating is True,
             wifi=self.wifi is True,
+            open_now=self.open_now is True,
         )
 
 
@@ -58,6 +60,18 @@ _WIFI_PATTERNS = ("wi-fi", "wifi", "вайф", "вай-ф", "вай ф")
 _WIFI_NEGATIVE_PATTERNS = ("без wi-fi", "без wifi", "без вайф", "без вай-фай", "без вай фай")
 _TERRACE_PATTERNS = ("веранд", "террас", "летней площадк", "летняя площадк")
 _TERRACE_NEGATIVE_PATTERNS = ("без веранд", "без террас", "без летней площад")
+_OPEN_NOW_PATTERNS = (
+    "открыто сейчас",
+    "открыты сейчас",
+    "сейчас открыто",
+    "сейчас открыты",
+    "работает сейчас",
+    "работают сейчас",
+)
+_OPEN_NOW_NEGATIVE_PATTERNS = (
+    "не обязательно открыто",
+    "неважно открыто",
+)
 _WHOLE_CITY_PATTERNS = ("вся пермь", "по всей перми", "во всей перми")
 _NEARBY_PATTERNS = ("рядом", "поблизости", "недалеко")
 
@@ -132,6 +146,11 @@ def parse_search_query(text: str) -> ParsedSearchQuery:
             positive=_WIFI_PATTERNS,
             negative=_WIFI_NEGATIVE_PATTERNS,
         ),
+        open_now=_feature_intent(
+            normalized,
+            positive=_OPEN_NOW_PATTERNS,
+            negative=_OPEN_NOW_NEGATIVE_PATTERNS,
+        ),
         radius_m=radius_m,
         district_key=district_key,
         whole_city=_contains_any(normalized, _WHOLE_CITY_PATTERNS),
@@ -150,6 +169,8 @@ def plan_search_query(
         updates["filter_outdoor_seating"] = parsed.outdoor_seating
     if parsed.wifi is not None:
         updates["filter_wifi"] = parsed.wifi
+    if parsed.open_now is not None:
+        updates["filter_open_now"] = parsed.open_now
 
     if parsed.district_key is not None:
         district = DISTRICT_BY_KEY[parsed.district_key]
