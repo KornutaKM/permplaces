@@ -135,6 +135,7 @@ async def test_favorites_round_trip_multi_provider_provenance(tmp_path) -> None:
         ),
         rating=4.8,
         review_count=150,
+        menu_url="https://menu.example.test/place",
     )
 
     repository = FavoritesRepository(str(database_path))
@@ -147,3 +148,4 @@ async def test_favorites_round_trip_multi_provider_provenance(tmp_path) -> None:
     assert restored.field_sources == venue.field_sources
     assert restored.rating == 4.8
     assert restored.review_count == 150
+    assert restored.menu_url == "https://menu.example.test/place"
