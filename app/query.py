@@ -3,7 +3,22 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 
+from app.districts import DISTRICT_BY_KEY, PERM_RELATION_ID
 from app.filters import PlaceFilters
+
+
+@dataclass(frozen=True, slots=True)
+class SearchQueryPlan:
+    def __init__(
+        self,
+        *,
+        updates: dict[str, object],
+        requires_location: bool = False,
+        radius_ignored: bool = False,
+    ) -> None:
+        self.updates = updates
+        self.requires_location = requires_location
+        self.radius_ignored = radius_ignored
 
 
 @dataclass(frozen=True, slots=True)
@@ -127,3 +142,59 @@ def parse_search_query(text: str) -> ParsedSearchQuery:
         whole_city=_contains_any(normalized, _WHOLE_CITY_PATTERNS),
         nearby=_contains_any(normalized, _NEARBY_PATTERNS),
     )
+
+
+
+def plan_search_query(
+    parsed: ParsedSearchQuery,
+    current: dict[str, object],
+) -> SearchQueryPlan:
+    updates: dict[str, object] = {}
+
+    if parsed.outdoor_seating is not None:
+        updates["filter_outdoor_seating"] = parsed.outdoor_seating
+    if parsed.wifi is not None:
+        updates["filter_wifi"] = parsed.wifi
+
+    if parsed.district_key is not None:
+        district = DISTRICT_BY_KEY[parsed.district_key]
+        updates.update(
+            search_scope="district",
+            district_name=district.name,
+            district_relation_id=district.relation_id,
+        )
+        return SearchQueryPlan(
+            updates=updates,
+            radius_ignored=parsed.radius_m is not None,
+        )
+
+    if parsed.whole_city:
+        updates.update(
+            search_scope="district",
+            district_name="Вся Пермь",
+            district_relation_id=PERM_RELATION_ID,
+        )
+        return SearchQueryPlan(
+            updates=updates,
+            radius_ignored=parsed.radius_m is not None,
+        )
+
+    if parsed.nearby or parsed.radius_m is not None:
+        latitude = current.get("latitude")
+        longitude = current.get("longitude")
+        has_location = isinstance(latitude, (float, int)) and isinstance(
+            longitude, (float, int)
+        )
+
+        if parsed.radius_m is not None:
+            updates["radius_m"] = parsed.radius_m
+
+        if not has_location:
+            return SearchQueryPlan(
+                updates=updates,
+                requires_location=True,
+            )
+
+        updates["search_scope"] = "location"
+
+    return SearchQueryPlan(updates=updates)
