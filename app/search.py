@@ -66,3 +66,25 @@ class SearchService:
             in_radius,
             key=lambda venue: (venue.distance_m or 0, venue.name.casefold()),
         )[:limit]
+
+    async def in_district(
+        self,
+        *,
+        category: str,
+        relation_id: int,
+        district_name: str,
+        limit: int = 5,
+    ) -> list[Venue]:
+        candidates = await self._provider.search_in_area(
+            category=category,
+            relation_id=relation_id,
+            limit=max(50, limit * 10),
+        )
+        normalized = [
+            replace(venue, district=district_name, distance_m=None)
+            for venue in candidates
+        ]
+        return sorted(
+            normalized,
+            key=lambda venue: (venue.name.casefold(), venue.source_id),
+        )[:limit]
