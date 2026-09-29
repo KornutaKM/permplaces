@@ -1,13 +1,18 @@
 from __future__ import annotations
 
+import logging
 from collections.abc import Mapping
+from time import monotonic
 from typing import Any
 
 import httpx
 
 from app.data import Venue
 from app.filters import PlaceFilters
+from app.observability import endpoint_label
 from app.providers.base import ProviderError
+
+logger = logging.getLogger(__name__)
 
 _CATEGORY_FILTERS = {
     "restaurant": '["amenity"="restaurant"]',
@@ -181,10 +186,11 @@ class OverpassProvider:
         client: httpx.AsyncClient | None = None,
     ) -> None:
         self._endpoint = endpoint
+        self._endpoint_label = endpoint_label(endpoint)
         self._owns_client = client is None
         self._client = client or httpx.AsyncClient(
             timeout=httpx.Timeout(timeout_seconds),
-            headers={"User-Agent": "PermPlaces/0.9 (+https://github.com/KornutaKM/permplaces)"},
+            headers={"User-Agent": "PermPlaces/0.13 (+https://github.com/KornutaKM/permplaces)"},
         )
 
     async def close(self) -> None:
@@ -232,18 +238,37 @@ class OverpassProvider:
         category: str,
         limit: int,
     ) -> list[Venue]:
+        started_at = monotonic()
         try:
             response = await self._client.post(self._endpoint, data={"data": query})
             response.raise_for_status()
             payload = response.json()
         except (httpx.HTTPError, ValueError) as exc:
+            elapsed_ms = round((monotonic() - started_at) * 1000)
+            logger.warning(
+                "overpass_request status=failed endpoint=%s elapsed_ms=%d",
+                self._endpoint_label,
+                elapsed_ms,
+            )
             raise ProviderError("OpenStreetMap search is temporarily unavailable") from exc
 
         if not isinstance(payload, Mapping):
+            elapsed_ms = round((monotonic() - started_at) * 1000)
+            logger.warning(
+                "overpass_request status=invalid_payload endpoint=%s elapsed_ms=%d",
+                self._endpoint_label,
+                elapsed_ms,
+            )
             raise ProviderError("OpenStreetMap returned an unexpected response")
 
         elements = payload.get("elements")
         if not isinstance(elements, list):
+            elapsed_ms = round((monotonic() - started_at) * 1000)
+            logger.warning(
+                "overpass_request status=invalid_elements endpoint=%s elapsed_ms=%d",
+                self._endpoint_label,
+                elapsed_ms,
+            )
             raise ProviderError("OpenStreetMap returned an unexpected response")
 
         venues: list[Venue] = []
@@ -259,6 +284,13 @@ class OverpassProvider:
             if len(venues) >= limit:
                 break
 
+        elapsed_ms = round((monotonic() - started_at) * 1000)
+        logger.info(
+            "overpass_request status=success endpoint=%s elapsed_ms=%d venues=%d",
+            self._endpoint_label,
+            elapsed_ms,
+            len(venues),
+        )
         return venues
 
     @staticmethod
