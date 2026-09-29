@@ -45,7 +45,7 @@ District search uses exact governed OSM administrative relations. Free-text sear
 - 🍣 Суши
 - 🍔 Фастфуд
 - 🧁 Десерты
-- 🎲 Удиви меня
+- 🎲 Удиви меня — randomly selects one result from an expanded mixed food/drink candidate set while preserving the current area and active filters
 
 ## Filters
 
