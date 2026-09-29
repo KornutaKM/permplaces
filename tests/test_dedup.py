@@ -12,6 +12,7 @@ def venue(
     address: str | None = None,
     phone: str | None = None,
     website: str | None = None,
+    menu_url: str | None = None,
     rating: float | None = None,
     rating_scale: float | None = None,
     review_count: int | None = None,
@@ -28,6 +29,7 @@ def venue(
         address=address,
         phone=phone,
         website=website,
+        menu_url=menu_url,
         rating=rating,
         rating_scale=rating_scale,
         review_count=review_count,
@@ -190,3 +192,19 @@ def test_rating_scale_is_kept_with_secondary_rating_source() -> None:
     assert {
         item.field_name: item.provider for item in merged.field_sources
     }["rating_scale"] == "foursquare"
+
+
+def test_menu_url_is_enriched_with_provider_provenance() -> None:
+    primary = venue(source="osm", source_id="node/20")
+    secondary = venue(
+        source="foursquare",
+        source_id="fsq-menu",
+        menu_url="https://menu.example.test/place",
+    )
+
+    merged = merge_venues(primary, secondary)
+
+    assert merged.menu_url == "https://menu.example.test/place"
+    assert {
+        item.field_name: item.provider for item in merged.field_sources
+    }["menu_url"] == "foursquare"
