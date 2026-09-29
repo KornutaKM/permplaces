@@ -13,6 +13,7 @@ from app.providers.overpass import ProviderError
 from app.query import parse_search_query, plan_search_query
 from app.search import SearchService
 from app.storage import FavoritesRepository
+from app.surprise import choose_surprise
 from app.ui import (
     CATEGORY_LABELS,
     categories_keyboard,
@@ -51,7 +52,7 @@ _SCENARIO_CATEGORIES = {
     "breakfast": "breakfast",
     "drink": "bar",
     "work": "cafe",
-    "random": "restaurant",
+    "random": "food_drink",
 }
 
 
@@ -82,6 +83,7 @@ async def _run_search(
     state: FSMContext,
     search_service: SearchService,
     category: str,
+    limit: int = 5,
 ) -> list[Venue] | None:
     data = await state.get_data()
     scope = data.get("search_scope")
@@ -97,7 +99,7 @@ async def _run_search(
             category=category,
             relation_id=relation_id,
             district_name=district_name,
-            limit=5,
+            limit=limit,
             filters=filters,
         )
     elif scope == "location":
@@ -117,7 +119,7 @@ async def _run_search(
             latitude=float(latitude),
             longitude=float(longitude),
             radius_m=radius_m,
-            limit=5,
+            limit=limit,
             filters=filters,
         )
     else:
@@ -601,11 +603,14 @@ async def scenario(
     if scenario_name == "work":
         await state.update_data(filter_wifi=True)
 
+    candidate_limit = 20 if scenario_name == "random" else 5
+
     try:
         venues = await _run_search(
             state=state,
             search_service=search_service,
             category=category,
+            limit=candidate_limit,
         )
     except ProviderError:
         await callback.message.edit_text(
@@ -626,13 +631,25 @@ async def scenario(
         )
         return
 
-    venue = venues[0]
+    if scenario_name == "random":
+        index, venue = choose_surprise(venues)
+        await state.update_data(result_index=index)
+        heading = "🎲 <b>Случайный выбор</b>\n\n"
+    else:
+        index = 0
+        venue = venues[0]
+        heading = ""
+
     await callback.message.edit_text(
-        render_venue_card(venue, position=1, total=len(venues)),
+        heading + render_venue_card(
+            venue,
+            position=index + 1,
+            total=len(venues),
+        ),
         reply_markup=results_keyboard(
             venue.id,
-            can_previous=False,
-            can_next=len(venues) > 1,
+            can_previous=index > 0,
+            can_next=index < len(venues) - 1,
         ),
         disable_web_page_preview=True,
     )
