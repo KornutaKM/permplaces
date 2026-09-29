@@ -7,12 +7,12 @@ from aiogram.fsm.state import State, StatesGroup
 from aiogram.types import CallbackQuery, Message, ReplyKeyboardRemove
 
 from app.data import Venue
+from app.districts import DISTRICT_BY_KEY, PERM_DISTRICTS, PERM_RELATION_ID
 from app.providers.overpass import ProviderError
 from app.search import SearchService
 from app.storage import FavoritesRepository
 from app.ui import (
     CATEGORY_LABELS,
-    DISTRICTS,
     categories_keyboard,
     districts_keyboard,
     filters_keyboard,
@@ -35,6 +35,7 @@ WELCOME = """<b>Привет! 👋
 
 🍽 Кафе, рестораны и бары
 📍 Поиск рядом с вами
+🏙 Поиск по районам Перми
 🎛 Удобные фильтры
 🗺 Маршруты и контакты
 ❤️ Избранные места
@@ -84,22 +85,42 @@ async def _run_search(
     category: str,
 ) -> list[Venue] | None:
     data = await state.get_data()
-    latitude = data.get("latitude")
-    longitude = data.get("longitude")
-    if not isinstance(latitude, (float, int)) or not isinstance(longitude, (float, int)):
+    scope = data.get("search_scope")
+
+    if scope == "district":
+        relation_id = data.get("district_relation_id")
+        district_name = data.get("district_name")
+        if not isinstance(relation_id, int) or not isinstance(district_name, str):
+            return None
+
+        venues = await search_service.in_district(
+            category=category,
+            relation_id=relation_id,
+            district_name=district_name,
+            limit=5,
+        )
+    elif scope == "location":
+        latitude = data.get("latitude")
+        longitude = data.get("longitude")
+        if not isinstance(latitude, (float, int)) or not isinstance(
+            longitude, (float, int)
+        ):
+            return None
+
+        radius_m = data.get("radius_m", 3000)
+        if not isinstance(radius_m, int):
+            radius_m = 3000
+
+        venues = await search_service.nearby(
+            category=category,
+            latitude=float(latitude),
+            longitude=float(longitude),
+            radius_m=radius_m,
+            limit=5,
+        )
+    else:
         return None
 
-    radius_m = data.get("radius_m", 3000)
-    if not isinstance(radius_m, int):
-        radius_m = 3000
-
-    venues = await search_service.nearby(
-        category=category,
-        latitude=float(latitude),
-        longitude=float(longitude),
-        radius_m=radius_m,
-        limit=5,
-    )
     await state.update_data(
         results=[asdict(venue) for venue in venues],
         result_index=0,
@@ -157,6 +178,7 @@ async def location_received(message: Message, state: FSMContext) -> None:
         longitude=message.location.longitude,
         radius_m=3000,
         location_source="telegram",
+        search_scope="location",
     )
     await message.answer(
         "<b>Геолокация получена.</b> Ищу реальные места вокруг этой точки.",
@@ -213,13 +235,13 @@ async def text_search(
 
     if venues is None:
         await message.answer(
-            "Сначала отправьте геолокацию через кнопку «📍 Рядом со мной».",
+            "Сначала выберите район Перми или отправьте геолокацию.",
             reply_markup=home_keyboard(),
         )
         return
     if not venues:
         await message.answer(
-            "В выбранном радиусе ничего не найдено. Можно увеличить радиус в фильтрах.",
+            "В выбранной области ничего не найдено. Попробуйте другую категорию.",
             reply_markup=categories_keyboard(),
         )
         return
@@ -284,29 +306,64 @@ async def nav_categories(callback: CallbackQuery) -> None:
 
 
 @router.callback_query(F.data == "nav:filters")
-async def nav_filters(callback: CallbackQuery) -> None:
+async def nav_filters(callback: CallbackQuery, state: FSMContext) -> None:
     await callback.answer()
-    if callback.message:
-        await callback.message.edit_text(
-            "<b>Настройте фильтры</b>\n\n"
-            "Радиус уже работает. Остальные фильтры будут включаться только "
-            "когда источник данных позволяет применить их без догадок.",
-            reply_markup=filters_keyboard(),
-        )
+    if not callback.message:
+        return
+
+    data = await state.get_data()
+    scope = data.get("search_scope")
+    scope_note = (
+        "Радиус применяется только в режиме «📍 Рядом со мной»."
+        if scope == "district"
+        else "Радиус уже работает для поиска рядом."
+    )
+    await callback.message.edit_text(
+        "<b>Настройте фильтры</b>\n\n"
+        f"{scope_note} Остальные фильтры будут включаться только "
+        "когда источник данных позволяет применить их без догадок.",
+        reply_markup=filters_keyboard(),
+    )
 
 
 @router.callback_query(F.data.startswith("district:"))
-async def district_selected(callback: CallbackQuery) -> None:
+async def district_selected(callback: CallbackQuery, state: FSMContext) -> None:
     await callback.answer()
     if not callback.message or not callback.data:
         return
 
     value = callback.data.split(":", 1)[1]
-    district = "Вся Пермь" if value == "all" else DISTRICTS[int(value)]
+    if value == "all":
+        district_name = "Вся Пермь"
+        relation_id = PERM_RELATION_ID
+    else:
+        district = DISTRICT_BY_KEY.get(value)
+
+        # Backward compatibility for keyboards sent by the pre-v0.4 bot.
+        if district is None and value.isdigit():
+            index = int(value)
+            if 0 <= index < len(PERM_DISTRICTS):
+                district = PERM_DISTRICTS[index]
+
+        if district is None:
+            await callback.message.edit_text(
+                "Этот район больше не распознан. Выберите район заново.",
+                reply_markup=districts_keyboard(),
+            )
+            return
+
+        district_name = district.name
+        relation_id = district.relation_id
+
+    await state.update_data(
+        search_scope="district",
+        district_name=district_name,
+        district_relation_id=relation_id,
+    )
     await callback.message.edit_text(
-        f"📍 <b>{district}</b>\n\n"
-        "Точный live-поиск по административным границам районов ещё не подключён. "
-        "Для реального поиска сейчас используйте «📍 Рядом со мной».",
+        f"🏙 <b>{district_name}</b>\n\n"
+        "Граница района взята из OpenStreetMap. Теперь выберите категорию:",
+        reply_markup=categories_keyboard(),
     )
 
 
@@ -338,13 +395,13 @@ async def category_selected(
     if venues is None:
         await callback.message.edit_text(
             f"<b>{label}</b>\n\n"
-            "Для live-поиска сначала отправьте геолокацию через кнопку «📍 Рядом со мной».",
+            "Сначала выберите район Перми или отправьте геолокацию.",
         )
         return
     if not venues:
         await callback.message.edit_text(
             f"<b>{label}</b>\n\n"
-            "В выбранном радиусе OpenStreetMap не вернул подходящих мест.",
+            "В выбранной области OpenStreetMap не вернул подходящих мест.",
             reply_markup=categories_keyboard(),
         )
         return
@@ -509,12 +566,12 @@ async def scenario(
 
     if venues is None:
         await callback.message.edit_text(
-            "Сначала отправьте геолокацию через «📍 Рядом со мной»."
+            "Сначала выберите район Перми или отправьте геолокацию."
         )
         return
     if not venues:
         await callback.message.edit_text(
-            "Подходящих мест в выбранном радиусе не найдено.",
+            "Подходящих мест в выбранной области не найдено.",
             reply_markup=categories_keyboard(),
         )
         return
@@ -538,6 +595,11 @@ async def filter_selected(callback: CallbackQuery, state: FSMContext) -> None:
 
     parts = callback.data.split(":")
     if len(parts) == 3 and parts[1] == "radius":
+        data = await state.get_data()
+        if data.get("search_scope") == "district":
+            await callback.answer("Радиус используется только в режиме «Рядом со мной».")
+            return
+
         radius_m = int(parts[2])
         await state.update_data(radius_m=radius_m)
         await callback.answer(f"Радиус: {radius_m / 1000:g} км")
