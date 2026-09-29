@@ -1,6 +1,7 @@
 import httpx
 import pytest
 
+from app.filters import PlaceFilters
 from app.providers.overpass import OverpassProvider, build_area_query, build_overpass_query
 
 
@@ -10,6 +11,32 @@ def test_build_area_query_uses_relation_boundary() -> None:
     assert "rel(1268697);" in query
     assert "map_to_area -> .searchArea;" in query
     assert 'nwr(area.searchArea)["amenity"="restaurant"]' in query
+
+
+def test_build_query_adds_osm_native_filters() -> None:
+    query = build_overpass_query(
+        category="cafe",
+        latitude=58.01046,
+        longitude=56.25017,
+        radius_m=1500,
+        filters=PlaceFilters(outdoor_seating=True, wifi=True),
+    )
+
+    assert '["outdoor_seating"]["outdoor_seating"!="no"]' in query
+    assert '["internet_access"~"(^|;)wlan(;|$)",i]' in query
+    assert '["wifi"~"^(yes|free)$",i]' in query
+
+
+def test_build_area_query_adds_wifi_filter() -> None:
+    query = build_area_query(
+        category="restaurant",
+        relation_id=1_268_697,
+        filters=PlaceFilters(wifi=True),
+    )
+
+    assert query.count("nwr(area.searchArea)") == 2
+    assert '["internet_access"~"(^|;)wlan(;|$)",i]' in query
+    assert '["wifi"~"^(yes|free)$",i]' in query
 
 
 def test_build_query_uses_radius_location_and_category() -> None:
@@ -47,6 +74,8 @@ async def test_provider_parses_node_and_way_center() -> None:
                             "cuisine": "coffee_shop;breakfast",
                             "contact:phone": "+7 342 000-00-00",
                             "contact:website": "https://coffee.example",
+                            "outdoor_seating": "yes",
+                            "internet_access": "wlan",
                         },
                     },
                     {
@@ -79,6 +108,10 @@ async def test_provider_parses_node_and_way_center() -> None:
     assert venues[0].cuisine == ("coffee_shop", "breakfast")
     assert venues[0].phone == "+7 342 000-00-00"
     assert venues[0].website == "https://coffee.example"
+    assert venues[0].outdoor_seating is True
+    assert venues[0].wifi is True
+    assert venues[1].outdoor_seating is None
+    assert venues[1].wifi is None
     assert venues[1].source_url.endswith("/way/202")
 
 
