@@ -10,7 +10,7 @@ from app.data import Venue
 from app.districts import DISTRICT_BY_KEY, PERM_DISTRICTS, PERM_RELATION_ID
 from app.filters import PlaceFilters
 from app.providers.overpass import ProviderError
-from app.query import parse_search_query
+from app.query import parse_search_query, plan_search_query
 from app.search import SearchService
 from app.storage import FavoritesRepository
 from app.ui import (
@@ -229,51 +229,16 @@ async def text_search(
         return
 
     data = await state.get_data()
-    updates: dict[str, object] = {}
+    plan = plan_search_query(parsed, data)
+    await state.update_data(**plan.updates)
 
-    if parsed.outdoor_seating is not None:
-        updates["filter_outdoor_seating"] = parsed.outdoor_seating
-    if parsed.wifi is not None:
-        updates["filter_wifi"] = parsed.wifi
-
-    explicit_district = False
-    if parsed.district_key is not None:
-        district = DISTRICT_BY_KEY[parsed.district_key]
-        updates.update(
-            search_scope="district",
-            district_name=district.name,
-            district_relation_id=district.relation_id,
+    if plan.requires_location:
+        await message.answer(
+            "Для поиска «рядом» нужна геолокация. "
+            "Отправьте её через кнопку «📍 Рядом со мной».",
+            reply_markup=home_keyboard(),
         )
-        explicit_district = True
-    elif parsed.whole_city:
-        updates.update(
-            search_scope="district",
-            district_name="Вся Пермь",
-            district_relation_id=PERM_RELATION_ID,
-        )
-        explicit_district = True
-    elif parsed.nearby or parsed.radius_m is not None:
-        latitude = data.get("latitude")
-        longitude = data.get("longitude")
-        has_location = isinstance(latitude, (float, int)) and isinstance(
-            longitude, (float, int)
-        )
-        if not has_location:
-            if parsed.radius_m is not None:
-                updates["radius_m"] = parsed.radius_m
-            await state.update_data(**updates)
-            await message.answer(
-                "Для поиска «рядом» нужна геолокация. "
-                "Отправьте её через кнопку «📍 Рядом со мной».",
-                reply_markup=home_keyboard(),
-            )
-            return
-
-        updates["search_scope"] = "location"
-        if parsed.radius_m is not None:
-            updates["radius_m"] = parsed.radius_m
-
-    await state.update_data(**updates)
+        return
 
     try:
         venues = await _run_search(
@@ -302,7 +267,7 @@ async def text_search(
         )
         return
 
-    if explicit_district and parsed.radius_m is not None:
+    if plan.radius_ignored:
         await message.answer(
             "ℹ️ Радиус из текста не применяется при поиске внутри выбранного района."
         )
