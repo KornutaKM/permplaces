@@ -221,3 +221,41 @@ def test_cache_rejects_invalid_bounds() -> None:
 
     with pytest.raises(ValueError):
         CachedPlacesProvider(provider, max_entries=0)
+
+
+
+@pytest.mark.asyncio
+async def test_cache_stats_track_hits_misses_coalescing_and_eviction() -> None:
+    provider = FakeProvider()
+    cache = CachedPlacesProvider(provider, ttl_seconds=120, max_entries=1)
+
+    await cache.search_nearby(
+        category="cafe",
+        latitude=58.01,
+        longitude=56.25,
+        radius_m=1000,
+        limit=5,
+    )
+    await cache.search_nearby(
+        category="cafe",
+        latitude=58.01,
+        longitude=56.25,
+        radius_m=1000,
+        limit=5,
+    )
+    await cache.search_nearby(
+        category="cafe",
+        latitude=58.01,
+        longitude=56.25,
+        radius_m=2000,
+        limit=5,
+    )
+
+    stats = cache.stats()
+
+    assert stats.hits == 1
+    assert stats.misses == 2
+    assert stats.coalesced == 0
+    assert stats.evictions == 1
+    assert stats.entries == 1
+    assert stats.inflight == 0
