@@ -7,6 +7,8 @@ from aiogram.enums import ParseMode
 
 from app.bot import router
 from app.config import load_settings
+from app.providers.overpass import OverpassProvider
+from app.search import SearchService
 
 
 async def main() -> None:
@@ -20,7 +22,17 @@ async def main() -> None:
     dispatcher = Dispatcher()
     dispatcher.include_router(router)
 
-    await dispatcher.start_polling(bot)
+    provider = OverpassProvider(
+        endpoint=settings.overpass_url,
+        timeout_seconds=settings.overpass_timeout_seconds,
+    )
+    search_service = SearchService(provider)
+
+    try:
+        await dispatcher.start_polling(bot, search_service=search_service)
+    finally:
+        await provider.close()
+        await bot.session.close()
 
 
 if __name__ == "__main__":
