@@ -4,7 +4,7 @@ Telegram-ассистент для поиска кафе, ресторанов, 
 
 ## Статус
 
-Версия 0.18 усиливает Docker runtime: non-root user, read-only root filesystem, dropped capabilities и bounded CPU/RAM/PIDs.
+Версия 0.19 делает действия после выбора места portable: маршрут открывается через Telegram Location с быстрыми ссылками на 2ГИС, Google Maps и OpenStreetMap, а «Поделиться» работает без Telegram inline-mode.
 
 Рабочие вертикальные сценарии:
 
@@ -33,6 +33,8 @@ Telegram-ассистент для поиска кафе, ресторанов, 
 - безопасная кнопка 🌐 «Сайт» для provider URL с http/https;
 - переход между результатами;
 - отправка точки заведения через Telegram Location;
+- быстрые ссылки на 2ГИС, Google Maps и OpenStreetMap из карточки маршрута;
+- «↗️ Поделиться» через стандартный Telegram share URL без зависимости от inline-mode;
 - ссылка на исходный OSM-объект;
 - обязательная атрибуция © OpenStreetMap contributors / ODbL;
 - текстовый поиск вида `кофе с Wi-Fi рядом 1 км`, `ресторан с верандой в Ленинском районе` или `суши открыто сейчас по всей Перми`;
