@@ -147,3 +147,87 @@ async def test_search_passes_filters_to_area_provider() -> None:
     )
 
     assert provider.area_filters == filters
+
+
+
+class OpenNowProvider:
+    async def search_nearby(
+        self,
+        *,
+        category: str,
+        latitude: float,
+        longitude: float,
+        radius_m: int,
+        limit: int,
+        filters: PlaceFilters | None = None,
+    ) -> list[Venue]:
+        del category, latitude, longitude, radius_m, limit, filters
+        return [
+            Venue(
+                id="open",
+                name="Open",
+                category="cafe",
+                category_label="Кофейня",
+                latitude=58.0105,
+                longitude=56.2502,
+                source="osm",
+                source_id="node/100",
+                opening_hours="24/7",
+            ),
+            Venue(
+                id="closed",
+                name="Closed",
+                category="cafe",
+                category_label="Кофейня",
+                latitude=58.011,
+                longitude=56.251,
+                source="osm",
+                source_id="node/101",
+                opening_hours="24/7 off",
+            ),
+            Venue(
+                id="unknown",
+                name="Unknown",
+                category="cafe",
+                category_label="Кофейня",
+                latitude=58.012,
+                longitude=56.252,
+                source="osm",
+                source_id="node/102",
+                opening_hours="definitely invalid",
+            ),
+        ]
+
+    async def search_in_area(
+        self,
+        *,
+        category: str,
+        relation_id: int,
+        limit: int,
+        filters: PlaceFilters | None = None,
+    ) -> list[Venue]:
+        del category, relation_id, limit, filters
+        return await self.search_nearby(
+            category="cafe",
+            latitude=58.01,
+            longitude=56.25,
+            radius_m=3000,
+            limit=10,
+        )
+
+
+@pytest.mark.asyncio
+async def test_open_now_filter_is_fail_closed() -> None:
+    service = SearchService(OpenNowProvider())
+
+    venues = await service.nearby(
+        category="cafe",
+        latitude=58.01046,
+        longitude=56.25017,
+        radius_m=5000,
+        limit=5,
+        filters=PlaceFilters(open_now=True),
+    )
+
+    assert [venue.id for venue in venues] == ["open"]
+    assert venues[0].is_open_now is True

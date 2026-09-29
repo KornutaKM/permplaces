@@ -53,11 +53,11 @@ Live:
 
 - radius: 500 m / 1 km / 3 km / 5 km for “Рядом со мной”;
 - terrace / outdoor seating only when OSM explicitly provides `outdoor_seating`;
-- Wi-Fi only when OSM explicitly provides `internet_access=wlan` or compatible legacy `wifi=yes/free`.
+- Wi-Fi only when OSM explicitly provides `internet_access=wlan` or compatible legacy `wifi=yes/free`;
+- open now only when a semantic OSM `opening_hours` evaluation returns OPEN for the venue timezone.
 
 Intentionally not active yet:
 
-- open now — requires semantic `opening_hours` parsing;
 - price level — no reliable OSM-wide source;
 - rating/reviews — not provided by OSM as a platform rating.
 
@@ -82,7 +82,8 @@ The card contains only sourced facts:
 - provider/source attribution;
 - phone when present in the provider;
 - district when known;
-- terrace and Wi-Fi badges only when positively confirmed by provider tags.
+- terrace and Wi-Fi badges only when positively confirmed by provider tags;
+- an “Открыто сейчас” badge only on a result evaluated OPEN during the current search.
 
 OSM does not supply PermPlaces with a platform rating or review count, so those fields are omitted.
 
@@ -121,6 +122,7 @@ The parser is deterministic and result-blind. It currently understands:
 - “рядом” / “поблизости” / “недалеко” as explicit geolocation intent;
 - radius from 100 m to 10 km;
 - Wi-Fi and terrace/outdoor-seating intent;
+- “открыто сейчас” intent;
 - “без Wi-Fi” / “без веранды” as explicit filter disablement.
 
 Unsupported or ambiguous semantics remain explicit rather than being guessed.
