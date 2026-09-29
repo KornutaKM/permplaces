@@ -51,16 +51,33 @@ def _filter_suffixes(filters: PlaceFilters | None) -> tuple[str, ...]:
     common = ""
     if active.outdoor_seating:
         common += '["outdoor_seating"]["outdoor_seating"!="no"]'
-    if active.open_now:
+    if active.open_now or active.open_late:
         common += '["opening_hours"]'
 
-    if active.wifi:
-        return (
-            common + '["internet_access"~"(^|;)wlan(;|$)",i]',
-            common + '["wifi"~"^(yes|free)$",i]',
-        )
+    suffixes = [common]
 
-    return (common,)
+    if active.wifi:
+        suffixes = [
+            prefix + wifi_filter
+            for prefix in suffixes
+            for wifi_filter in (
+                '["internet_access"~"(^|;)wlan(;|$)",i]',
+                '["wifi"~"^(yes|free)$",i]',
+            )
+        ]
+
+    if active.family_friendly:
+        suffixes = [
+            prefix + family_filter
+            for prefix in suffixes
+            for family_filter in (
+                '["kids_area"~"^(yes|designated|limited)$",i]',
+                '["highchair"~"^(yes|[1-9][0-9]*)$",i]',
+                '["changing_table"~"^(yes|limited)$",i]',
+            )
+        ]
+
+    return tuple(suffixes)
 
 
 def build_overpass_query(
@@ -152,6 +169,40 @@ def _outdoor_seating(tags: Mapping[str, Any]) -> bool | None:
     return value.strip().casefold() != "no"
 
 
+def _positive_enum_tag(
+    tags: Mapping[str, Any],
+    key: str,
+    *,
+    positive: set[str],
+) -> bool | None:
+    value = tags.get(key)
+    if not isinstance(value, str) or not value.strip():
+        return None
+
+    normalized = value.strip().casefold()
+    if normalized in positive:
+        return True
+    if normalized == "no":
+        return False
+    return None
+
+
+def _highchair(tags: Mapping[str, Any]) -> bool | None:
+    value = tags.get("highchair")
+    if not isinstance(value, str) or not value.strip():
+        return None
+
+    normalized = value.strip().casefold()
+    if normalized == "yes":
+        return True
+    if normalized == "no":
+        return False
+    try:
+        return int(normalized) > 0
+    except ValueError:
+        return None
+
+
 def _wifi(tags: Mapping[str, Any]) -> bool | None:
     internet_access = tags.get("internet_access")
     legacy_wifi = tags.get("wifi")
@@ -190,7 +241,7 @@ class OverpassProvider:
         self._owns_client = client is None
         self._client = client or httpx.AsyncClient(
             timeout=httpx.Timeout(timeout_seconds),
-            headers={"User-Agent": "PermPlaces/0.13 (+https://github.com/KornutaKM/permplaces)"},
+            headers={"User-Agent": "PermPlaces/0.14 (+https://github.com/KornutaKM/permplaces)"},
         )
 
     async def close(self) -> None:
@@ -346,4 +397,15 @@ class OverpassProvider:
             cuisine=_split_tag(tags.get("cuisine")),
             outdoor_seating=_outdoor_seating(tags),
             wifi=_wifi(tags),
+            kids_area=_positive_enum_tag(
+                tags,
+                "kids_area",
+                positive={"yes", "designated", "limited"},
+            ),
+            highchair=_highchair(tags),
+            changing_table=_positive_enum_tag(
+                tags,
+                "changing_table",
+                positive={"yes", "limited"},
+            ),
         )
