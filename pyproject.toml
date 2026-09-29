@@ -1,10 +1,11 @@
 [project]
 name = "permplaces"
-version = "0.16.0"
+version = "0.17.0"
 description = "Telegram city places assistant for Perm"
 requires-python = ">=3.12"
 dependencies = [
   "aiogram>=3.22,<4",
+  "aiohttp>=3.13,<4",
   "aiosqlite>=0.21,<1",
   "httpx>=0.28,<1",
   "opening-hours-py>=2.1.4,<3",
