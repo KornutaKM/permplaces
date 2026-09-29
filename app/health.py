@@ -65,7 +65,7 @@ async def live_handler(request: web.Request) -> web.Response:
 async def ready_handler(request: web.Request) -> web.Response:
     state = request.app["health_state"]
     if not isinstance(state, HealthState):
-        raise RuntimeError("health state is not configured")
+        raise TypeError("health state is not configured")
 
     status = 200 if state.ready else 503
     body = {"status": "ready" if state.ready else "not_ready"}
