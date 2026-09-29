@@ -4,7 +4,7 @@ Telegram-ассистент для поиска кафе, ресторанов, 
 
 ## Статус
 
-Версия 0.18 усиливает Docker runtime: non-root user, read-only root filesystem, dropped capabilities и bounded CPU/RAM/PIDs.
+Версия 0.19 добавляет проверяемый SQLite backup/verify/restore workflow для сохранения и восстановления пользовательского избранного.
 
 Рабочие вертикальные сценарии:
 
@@ -54,7 +54,8 @@ Telegram-ассистент для поиска кафе, ресторанов, 
 - provider-aware source attribution в карточке;
 - `/health/live` и `/health/ready` внутри контейнера;
 - Docker HEALTHCHECK, который показывает `healthy` только после runtime + SQLite initialization;
-- hardened container runtime: UID 10001, read-only root FS, `cap_drop: ALL`, `no-new-privileges`, resource limits.
+- hardened container runtime: UID 10001, read-only root FS, `cap_drop: ALL`, `no-new-privileges`, resource limits;
+- SQLite backup CLI с online snapshot, `integrity_check` и атомарным restore.
 
 ## Принцип данных
 
@@ -192,7 +193,7 @@ Provider abstraction теперь включает deterministic aggregation и 
 1. Исследовать отдельный источник, который легально отдаёт rating/review values; 2GIS Places API 3.0 стандартно отдаёт только наличие rating/reviews, не значения/тексты.
 2. Добавить average-check enrichment только после region-specific attribute discovery и provenance.
 3. Сценарий «На свидание» после появления достаточно надёжных признаков.
-4. Production deployment runbook: secrets, backups, restore drill и deploy/rollback procedure.
+4. Production deployment runbook: secrets и deploy/rollback procedure.
 
 
 ## Overpass failover
@@ -312,3 +313,21 @@ The default Compose runtime uses defense-in-depth controls:
 
 CI verifies the image user is non-root, the data volume remains writable, and writes to the
 container root filesystem fail as expected.
+
+## Backup and restore
+
+PermPlaces includes a built-in SQLite operations CLI:
+
+```powershell
+docker compose run --rm --no-deps bot python -m app.backup create `
+  --database /app/data/permplaces.db `
+  --output /app/data/backups/permplaces.db
+
+docker compose run --rm --no-deps bot python -m app.backup verify `
+  --input /app/data/backups/permplaces.db
+```
+
+Backup creation uses SQLite's online backup API, so it is safe while the bot is running.
+Restore must be performed with the bot stopped and requires `--force` when replacing the current database.
+
+Full procedure: `docs/BACKUP_RESTORE.md`.
