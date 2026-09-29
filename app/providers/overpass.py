@@ -1,0 +1,199 @@
+from __future__ import annotations
+
+from collections.abc import Mapping
+from typing import Any
+
+import httpx
+
+from app.data import Venue
+
+
+class ProviderError(RuntimeError):
+    """Raised when an external places provider cannot return a usable response."""
+
+
+_CATEGORY_FILTERS = {
+    "restaurant": '["amenity"="restaurant"]',
+    "cafe": '["amenity"="cafe"]',
+    "bar": '["amenity"~"^(bar|pub)$"]',
+    "fastfood": '["amenity"="fast_food"]',
+    "pizza": '["amenity"~"^(restaurant|fast_food)$"]["cuisine"~"pizza",i]',
+    "sushi": '["amenity"~"^(restaurant|fast_food)$"]["cuisine"~"(sushi|japanese)",i]',
+    "breakfast": '["amenity"~"^(cafe|restaurant)$"]["breakfast"="yes"]',
+    "dessert": '["amenity"~"^(cafe|ice_cream)$"]',
+}
+
+_CATEGORY_NAMES = {
+    "restaurant": "Ресторан",
+    "cafe": "Кофейня",
+    "bar": "Бар",
+    "fastfood": "Фастфуд",
+    "pizza": "Пицца",
+    "sushi": "Суши",
+    "breakfast": "Завтраки",
+    "dessert": "Десерты",
+}
+
+
+def build_overpass_query(
+    *,
+    category: str,
+    latitude: float,
+    longitude: float,
+    radius_m: int,
+) -> str:
+    tag_filter = _CATEGORY_FILTERS.get(category)
+    if tag_filter is None:
+        raise ValueError(f"Unsupported category: {category}")
+
+    return (
+        "[out:json][timeout:20];\n"
+        "(\n"
+        f'  nwr(around:{radius_m},{latitude:.6f},{longitude:.6f}){tag_filter};\n'
+        ");\n"
+        "out center tags;"
+    )
+
+
+def _coordinates(element: Mapping[str, Any]) -> tuple[float, float] | None:
+    if "lat" in element and "lon" in element:
+        return float(element["lat"]), float(element["lon"])
+
+    center = element.get("center")
+    if isinstance(center, Mapping) and "lat" in center and "lon" in center:
+        return float(center["lat"]), float(center["lon"])
+
+    return None
+
+
+def _address(tags: Mapping[str, Any]) -> str | None:
+    full = tags.get("addr:full")
+    if isinstance(full, str) and full.strip():
+        return full.strip()
+
+    street = tags.get("addr:street")
+    house = tags.get("addr:housenumber")
+    parts = [
+        value.strip()
+        for value in (street, house)
+        if isinstance(value, str) and value.strip()
+    ]
+    return ", ".join(parts) or None
+
+
+def _split_tag(value: Any) -> tuple[str, ...]:
+    if not isinstance(value, str):
+        return ()
+    return tuple(part.strip() for part in value.split(";") if part.strip())
+
+
+class OverpassProvider:
+    def __init__(
+        self,
+        *,
+        endpoint: str,
+        timeout_seconds: float = 20.0,
+        client: httpx.AsyncClient | None = None,
+    ) -> None:
+        self._endpoint = endpoint
+        self._owns_client = client is None
+        self._client = client or httpx.AsyncClient(
+            timeout=httpx.Timeout(timeout_seconds),
+            headers={"User-Agent": "PermPlaces/0.2 (+https://github.com/KornutaKM/permplaces)"},
+        )
+
+    async def close(self) -> None:
+        if self._owns_client:
+            await self._client.aclose()
+
+    async def search_nearby(
+        self,
+        *,
+        category: str,
+        latitude: float,
+        longitude: float,
+        radius_m: int,
+        limit: int,
+    ) -> list[Venue]:
+        query = build_overpass_query(
+            category=category,
+            latitude=latitude,
+            longitude=longitude,
+            radius_m=radius_m,
+        )
+
+        try:
+            response = await self._client.post(self._endpoint, data={"data": query})
+            response.raise_for_status()
+            payload = response.json()
+        except (httpx.HTTPError, ValueError) as exc:
+            raise ProviderError("OpenStreetMap search is temporarily unavailable") from exc
+
+        elements = payload.get("elements")
+        if not isinstance(elements, list):
+            raise ProviderError("OpenStreetMap returned an unexpected response")
+
+        venues: list[Venue] = []
+        for element in elements:
+            if not isinstance(element, Mapping):
+                continue
+            venue = self._parse_element(element, category)
+            if venue is not None:
+                venues.append(venue)
+            if len(venues) >= limit:
+                break
+
+        return venues
+
+    @staticmethod
+    def _parse_element(element: Mapping[str, Any], category: str) -> Venue | None:
+        coords = _coordinates(element)
+        tags = element.get("tags")
+        if coords is None or not isinstance(tags, Mapping):
+            return None
+
+        name = tags.get("name") or tags.get("brand")
+        if not isinstance(name, str) or not name.strip():
+            return None
+
+        element_type = element.get("type")
+        element_id = element.get("id")
+        if element_type not in {"node", "way", "relation"} or not isinstance(element_id, int):
+            return None
+
+        latitude, longitude = coords
+        source_id = f"{element_type}/{element_id}"
+
+        return Venue(
+            id=f"osm:{source_id}",
+            name=name.strip(),
+            category=category,
+            category_label=_CATEGORY_NAMES.get(category, "Заведение"),
+            latitude=latitude,
+            longitude=longitude,
+            source="osm",
+            source_id=source_id,
+            source_url=f"https://www.openstreetmap.org/{element_type}/{element_id}",
+            address=_address(tags),
+            district=(
+                tags.get("addr:district").strip()
+                if isinstance(tags.get("addr:district"), str)
+                else None
+            ),
+            opening_hours=(
+                tags.get("opening_hours").strip()
+                if isinstance(tags.get("opening_hours"), str)
+                else None
+            ),
+            phone=(
+                (tags.get("contact:phone") or tags.get("phone")).strip()
+                if isinstance(tags.get("contact:phone") or tags.get("phone"), str)
+                else None
+            ),
+            website=(
+                (tags.get("contact:website") or tags.get("website")).strip()
+                if isinstance(tags.get("contact:website") or tags.get("website"), str)
+                else None
+            ),
+            cuisine=_split_tag(tags.get("cuisine")),
+        )
