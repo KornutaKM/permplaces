@@ -49,6 +49,7 @@ Fail-closed cases:
 - rating: Foursquare 0–10 scale;
 - rating count: `stats.total_ratings`;
 - price: Foursquare 1–4 tier, rendered as `₽` through `₽₽₽₽`;
+- menu: accepted only as an explicit `http`/`https` URL returned by Foursquare;
 - missing or malformed values remain missing;
 - Foursquare is shown in card attribution whenever it contributes data.
 
@@ -70,3 +71,14 @@ Any Telegram card that contains Foursquare Places Data must display the branded 
 `Powered by Foursquare`. Provider provenance is therefore also a display-compliance signal:
 if Foursquare contributes any merged field, the card keeps a Foursquare source reference and
 renders the credit.
+
+
+## Menu links
+
+The adapter requests the documented `menu` field. PermPlaces exposes a Telegram `📖 Меню`
+button only when that field is a syntactically valid HTTP(S) URL.
+
+No menu URL is inferred from the venue website, search-engine results, venue name or address.
+If the provider omits the field, the button is absent. When an OSM-primary card is enriched with
+a Foursquare menu URL, field-level provenance records Foursquare as the source and the card keeps
+the required `Powered by Foursquare` credit.
