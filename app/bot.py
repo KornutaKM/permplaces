@@ -237,9 +237,6 @@ async def text_search(
         )
         return
 
-    if scenario_name == "work":
-        await state.update_data(filter_wifi=True)
-
     try:
         venues = await _run_search(
             state=state,
@@ -574,6 +571,9 @@ async def scenario(
             reply_markup=categories_keyboard(),
         )
         return
+
+    if scenario_name == "work":
+        await state.update_data(filter_wifi=True)
 
     try:
         venues = await _run_search(
