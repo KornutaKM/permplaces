@@ -38,6 +38,39 @@ class FakeProvider:
             ),
         ]
 
+    async def search_in_area(
+        self,
+        *,
+        category: str,
+        relation_id: int,
+        limit: int,
+    ) -> list[Venue]:
+        del category, relation_id, limit
+        return [
+            Venue(
+                id="z",
+                name="Zulu",
+                category="cafe",
+                category_label="Кофейня",
+                latitude=58.01,
+                longitude=56.25,
+                source="osm",
+                source_id="node/9",
+                distance_m=999,
+            ),
+            Venue(
+                id="a",
+                name="Alpha",
+                category="cafe",
+                category_label="Кофейня",
+                latitude=58.02,
+                longitude=56.26,
+                source="osm",
+                source_id="node/8",
+                distance_m=888,
+            ),
+        ]
+
 
 def test_distance_is_zero_for_same_point() -> None:
     assert distance_m(58.01046, 56.25017, 58.01046, 56.25017) == 0
@@ -58,3 +91,19 @@ async def test_search_sorts_by_distance() -> None:
     assert [venue.id for venue in venues] == ["near", "far"]
     assert venues[0].distance_m is not None
     assert venues[0].distance_m < venues[1].distance_m
+
+
+@pytest.mark.asyncio
+async def test_district_search_sorts_by_name_and_clears_distance() -> None:
+    service = SearchService(FakeProvider())
+
+    venues = await service.in_district(
+        category="cafe",
+        relation_id=1_268_696,
+        district_name="Дзержинский",
+        limit=5,
+    )
+
+    assert [venue.id for venue in venues] == ["a", "z"]
+    assert all(venue.district == "Дзержинский" for venue in venues)
+    assert all(venue.distance_m is None for venue in venues)
