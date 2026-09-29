@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import asyncio
 from collections import OrderedDict
-from collections.abc import Callable
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from time import monotonic
 from typing import TypeAlias
@@ -116,7 +116,7 @@ class CachedPlacesProvider:
     async def _get_or_fetch(
         self,
         key: CacheKey,
-        fetch: Callable[[], object],
+        fetch: Callable[[], Awaitable[list[Venue]]],
     ) -> list[Venue]:
         now = self._clock()
 
@@ -131,13 +131,7 @@ class CachedPlacesProvider:
 
             task = self._inflight.get(key)
             if task is None:
-                async def run_fetch() -> list[Venue]:
-                    result = fetch()
-                    if not hasattr(result, "__await__"):
-                        raise TypeError("fetch must return an awaitable")
-                    return await result  # type: ignore[misc]
-
-                task = asyncio.create_task(run_fetch())
+                task = asyncio.create_task(fetch())
                 self._inflight[key] = task
 
         try:
