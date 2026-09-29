@@ -8,6 +8,7 @@ from aiogram.enums import ParseMode
 from app.bot import router
 from app.config import load_settings
 from app.providers.cache import CachedPlacesProvider
+from app.providers.failover import FailoverPlacesProvider
 from app.providers.overpass import OverpassProvider
 from app.search import SearchService
 from app.storage import FavoritesRepository
@@ -24,12 +25,16 @@ async def main() -> None:
     dispatcher = Dispatcher()
     dispatcher.include_router(router)
 
-    provider = OverpassProvider(
-        endpoint=settings.overpass_url,
-        timeout_seconds=settings.overpass_timeout_seconds,
-    )
+    overpass_providers = [
+        OverpassProvider(
+            endpoint=endpoint,
+            timeout_seconds=settings.overpass_timeout_seconds,
+        )
+        for endpoint in settings.overpass_endpoints
+    ]
+    failover_provider = FailoverPlacesProvider(overpass_providers)
     cached_provider = CachedPlacesProvider(
-        provider,
+        failover_provider,
         ttl_seconds=settings.provider_cache_ttl_seconds,
         max_entries=settings.provider_cache_max_entries,
     )
@@ -44,7 +49,7 @@ async def main() -> None:
             favorites_repository=favorites_repository,
         )
     finally:
-        await provider.close()
+        await asyncio.gather(*(provider.close() for provider in overpass_providers))
         await bot.session.close()
 
 

@@ -4,7 +4,7 @@ Telegram-ассистент для поиска кафе, ресторанов, 
 
 ## Статус
 
-Версия 0.10 добавляет bounded TTL-кэш provider-запросов с single-flight для повторных и одновременных поисков.
+Версия 0.11 добавляет явный graceful failover между настроенными Overpass endpoints без скрытой отправки запросов сторонним операторам.
 
 Рабочие вертикальные сценарии:
 
@@ -41,6 +41,7 @@ Telegram-ассистент для поиска кафе, ресторанов, 
 - готовые сценарии для кофе, еды, завтрака, напитков и работы с Wi-Fi;
 - 🎲 реальный случайный выбор среди смешанных food & drink категорий;
 - bounded TTL-кэш provider-запросов; одинаковые одновременные запросы объединяются в один upstream-call;
+- configurable graceful failover: fallback endpoint используется только после `ProviderError` primary;
 - ❤️ постоянное избранное в SQLite, изолированное по Telegram user ID;
 - Ruff + pytest;
 - Docker build/smoke CI.
@@ -84,6 +85,8 @@ pip install -e ".[dev]"
 ```env
 BOT_TOKEN=your_telegram_bot_token
 OVERPASS_URL=https://overpass-api.de/api/interpreter
+# Optional; comma-separated and explicitly operator-controlled.
+OVERPASS_FALLBACK_URLS=
 OVERPASS_TIMEOUT_SECONDS=20
 DATABASE_PATH=data/permplaces.db
 PROVIDER_CACHE_TTL_SECONDS=120
@@ -127,4 +130,19 @@ Provider abstraction позволяет позже добавить 2GIS или 
 1. Второй provider для рейтингов/отзывов/чека.
 2. Дедупликация одного заведения между источниками.
 3. Улучшенные сценарии «на свидание», «с детьми», «поздно вечером».
-4. Наблюдаемость provider latency/cache hit-rate и graceful fallback при деградации upstream.
+4. Наблюдаемость provider latency/cache hit-rate и состояние failover.
+
+
+## Overpass failover
+
+PermPlaces does not silently send a user's location query to additional Overpass operators.
+
+The primary endpoint remains `OVERPASS_URL`. Additional endpoints are opt-in through
+`OVERPASS_FALLBACK_URLS` as a comma-separated ordered list. A fallback is contacted only
+when the previous provider returns a provider-level failure; a valid empty result is not
+treated as an error.
+
+The OpenStreetMap Wiki maintains the current list and usage policies for public Overpass
+instances:
+
+https://wiki.openstreetmap.org/wiki/Overpass_API
