@@ -4,6 +4,10 @@ from app.data import Venue
 from app.filters import PlaceFilters
 
 
+class ProviderError(RuntimeError):
+    """Raised when an external places provider cannot return a usable response."""
+
+
 class PlacesProvider(Protocol):
     async def search_nearby(
         self,
