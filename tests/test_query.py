@@ -15,6 +15,7 @@ def test_parse_category_filters_radius_and_district() -> None:
         district_key="leninsky",
         whole_city=False,
         nearby=False,
+        invalid_radius=False,
     )
 
 
@@ -40,8 +41,13 @@ def test_radius_supports_meters_and_kilometers() -> None:
 
 
 def test_radius_is_bounded() -> None:
-    assert parse_search_query("кафе 50 м").radius_m is None
-    assert parse_search_query("кафе 25 км").radius_m is None
+    too_small = parse_search_query("кафе 50 м")
+    too_large = parse_search_query("кафе 25 км")
+
+    assert too_small.radius_m is None
+    assert too_small.invalid_radius is True
+    assert too_large.radius_m is None
+    assert too_large.invalid_radius is True
 
 
 def test_unknown_text_stays_explicitly_unparsed() -> None:
@@ -55,6 +61,7 @@ def test_unknown_text_stays_explicitly_unparsed() -> None:
     assert parsed.district_key is None
     assert parsed.whole_city is False
     assert parsed.nearby is False
+    assert parsed.invalid_radius is False
 
 
 def test_negated_features_do_not_enable_filters() -> None:
@@ -72,7 +79,6 @@ def test_parse_nearby_intent() -> None:
     assert parsed.filters.wifi is True
     assert parsed.wifi is True
     assert parsed.nearby is True
-
 
 
 def test_plan_explicit_district_overrides_previous_location_scope() -> None:
