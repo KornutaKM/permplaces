@@ -54,7 +54,7 @@ _DISTRICT_PATTERNS: tuple[tuple[str, tuple[str, ...]], ...] = (
     ("sverdlovsky", ("свердловск",)),
 )
 
-_WIFI_PATTERNS = ("wi-fi", "wifi", "вайфай", "вай-фай", "вай фай")
+_WIFI_PATTERNS = ("wi-fi", "wifi", "вайф", "вай-ф", "вай ф")
 _WIFI_NEGATIVE_PATTERNS = ("без wi-fi", "без wifi", "без вайф", "без вай-фай", "без вай фай")
 _TERRACE_PATTERNS = ("веранд", "террас", "летней площадк", "летняя площадк")
 _TERRACE_NEGATIVE_PATTERNS = ("без веранд", "без террас", "без летней площад")
