@@ -30,21 +30,36 @@ docker compose logs -f bot
 
 The bot uses Telegram long polling, so no host port needs to be published.
 
+The runtime container is intentionally hardened:
+
+- UID/GID `10001:10001` instead of root;
+- read-only root filesystem;
+- writable named volume only for SQLite data;
+- writable tmpfs only for `/tmp`;
+- all Linux capabilities dropped;
+- `no-new-privileges`;
+- bounded CPU, memory and process count.
+
 ## Persistent data
 
-Compose bind-mounts:
+Compose stores SQLite in the named volume `permplaces-data`, mounted at:
 
 ```text
-./data -> /app/data
+/app/data
 ```
 
-The default SQLite database is therefore persisted as:
+The database path inside the container remains:
 
 ```text
-./data/permplaces.db
+/app/data/permplaces.db
 ```
 
-`docker compose down` removes the container/network but keeps this database.
+`docker compose down` removes the container/network but keeps the named volume.
+`docker compose down -v` also deletes the volume and therefore deletes local favorites.
+
+Before v0.18, local Compose used `./data` as a bind mount. That host directory is not
+deleted by this change. If it contains favorites you need to keep, copy the database into
+the new named volume before removing the old directory.
 
 ## Common commands
 
