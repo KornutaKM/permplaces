@@ -22,6 +22,7 @@ from app.ui import (
     home_keyboard,
     render_venue_card,
     results_keyboard,
+    route_keyboard,
     scenarios_keyboard,
     venue_keyboard,
 )
@@ -577,6 +578,7 @@ async def route(callback: CallbackQuery, state: FSMContext) -> None:
     await callback.message.answer_location(
         latitude=venue.latitude,
         longitude=venue.longitude,
+        reply_markup=route_keyboard(venue),
     )
 
 

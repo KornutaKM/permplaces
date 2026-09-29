@@ -21,7 +21,7 @@ PermPlaces should feel like a compact city concierge rather than a database brow
 3. Choose/parse category and supported provider-backed filters.
 4. Browse result cards.
 5. Open a venue.
-6. Send its map location, open its site/OSM source, or save it to favorites.
+6. Send its map location, open it in an external map, share it, open its site/source, or save it to favorites.
 
 ## Home
 
@@ -90,8 +90,9 @@ OSM does not supply PermPlaces with a platform rating or review count, so those 
 Actions:
 
 - Подробнее
-- Маршрут
+- Маршрут — sends Telegram Location and offers 2GIS, Google Maps and OpenStreetMap links
 - Открыть в OSM
+- Поделиться — standard Telegram share URL; must not require bot inline-mode
 - Сайт, only when the provider supplies a valid HTTP(S) URL
 - В избранное
 - Следующее / Предыдущее

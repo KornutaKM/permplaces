@@ -1,5 +1,13 @@
+from urllib.parse import parse_qs, urlsplit
+
 from app.data import SourceRef, Venue
-from app.ui import filters_keyboard, render_venue_card, venue_keyboard
+from app.ui import (
+    filters_keyboard,
+    render_venue_card,
+    route_keyboard,
+    share_venue_url,
+    venue_keyboard,
+)
 
 
 def test_real_osm_card_keeps_missing_facts_missing() -> None:
@@ -224,3 +232,91 @@ def test_non_osm_missing_address_message_is_provider_neutral() -> None:
     assert "Адрес не указан источником" in card
     assert "2ГИС" in card
     assert "OpenStreetMap" not in card
+
+
+
+def test_share_button_works_without_bot_inline_mode() -> None:
+    venue = Venue(
+        id="2gis:70000001000000001",
+        name="Тестовое место",
+        category="cafe",
+        category_label="Кофейня",
+        latitude=58.01046,
+        longitude=56.25017,
+        source="2gis",
+        source_id="70000001000000001",
+        address="улица Ленина, 10",
+    )
+
+    share_url = share_venue_url(venue)
+    parsed = urlsplit(share_url)
+    params = parse_qs(parsed.query)
+
+    assert parsed.scheme == "https"
+    assert parsed.netloc == "t.me"
+    assert parsed.path == "/share/url"
+    assert params["url"] == ["https://2gis.ru/firm/70000001000000001"]
+    assert params["text"] == ["Тестовое место — улица Ленина, 10"]
+
+    share_button = next(
+        button
+        for row in venue_keyboard(venue).inline_keyboard
+        for button in row
+        if button.text == "↗️ Поделиться"
+    )
+    assert share_button.url == share_url
+    assert share_button.switch_inline_query is None
+
+
+def test_route_keyboard_uses_provider_and_coordinate_links() -> None:
+    venue = Venue(
+        id="2gis:70000001000000002",
+        name="Маршрутное место",
+        category="restaurant",
+        category_label="Ресторан",
+        latitude=58.01046,
+        longitude=56.25017,
+        source="2gis",
+        source_id="70000001000000002",
+    )
+
+    urls = {
+        button.text: button.url
+        for row in route_keyboard(venue).inline_keyboard
+        for button in row
+    }
+
+    assert urls["🧭 2ГИС"] == "https://2gis.ru/firm/70000001000000002"
+    google = urlsplit(urls["🗺 Google Maps"] or "")
+    assert google.scheme == "https"
+    assert google.netloc == "www.google.com"
+    assert parse_qs(google.query)["destination"] == ["58.010460,56.250170"]
+    assert (
+        urls["🌍 OpenStreetMap"]
+        == "https://www.openstreetmap.org/?mlat=58.010460&mlon=56.250170"
+        "#map=18/58.010460/56.250170"
+    )
+
+
+def test_share_url_rejects_unsafe_source_url_and_falls_back_to_map() -> None:
+    venue = Venue(
+        id="osm:node/9",
+        name="Unsafe source",
+        category="cafe",
+        category_label="Кофейня",
+        latitude=58.01,
+        longitude=56.25,
+        source="osm",
+        source_id="node/9",
+        source_url="javascript:alert(1)",
+    )
+
+    params = parse_qs(urlsplit(share_venue_url(venue)).query)
+
+    assert params["url"] == [
+        (
+            "https://www.openstreetmap.org/?mlat=58.010000&mlon=56.250000"
+            "#map=18/58.010000/56.250000"
+        )
+    ]
+    assert "javascript:" not in share_venue_url(venue)
