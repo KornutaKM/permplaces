@@ -13,6 +13,8 @@ from app.providers.overpass import OverpassProvider
 from app.search import SearchService
 from app.storage import FavoritesRepository
 
+logger = logging.getLogger(__name__)
+
 
 async def main() -> None:
     logging.basicConfig(level=logging.INFO)
@@ -42,6 +44,13 @@ async def main() -> None:
     favorites_repository = FavoritesRepository(settings.database_path)
     await favorites_repository.initialize()
 
+    logger.info(
+        "permplaces_start overpass_endpoints=%d cache_ttl_seconds=%s cache_max_entries=%d",
+        len(settings.overpass_endpoints),
+        settings.provider_cache_ttl_seconds,
+        settings.provider_cache_max_entries,
+    )
+
     try:
         await dispatcher.start_polling(
             bot,
@@ -49,6 +58,16 @@ async def main() -> None:
             favorites_repository=favorites_repository,
         )
     finally:
+        cache_stats = cached_provider.stats()
+        logger.info(
+            "permplaces_stop cache_hits=%d cache_misses=%d cache_coalesced=%d "
+            "cache_evictions=%d cache_entries=%d",
+            cache_stats.hits,
+            cache_stats.misses,
+            cache_stats.coalesced,
+            cache_stats.evictions,
+            cache_stats.entries,
+        )
         await asyncio.gather(*(provider.close() for provider in overpass_providers))
         await bot.session.close()
 

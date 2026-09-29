@@ -4,7 +4,7 @@ Telegram-ассистент для поиска кафе, ресторанов, 
 
 ## Статус
 
-Версия 0.12 добавляет проверенный Docker Compose workflow для локального запуска бота одной командой с persistent SQLite data.
+Версия 0.13 добавляет безопасную runtime-наблюдаемость: latency Overpass, cache hit/miss/coalescing/eviction и переходы failover без логирования координат или query.
 
 Рабочие вертикальные сценарии:
 
@@ -42,6 +42,7 @@ Telegram-ассистент для поиска кафе, ресторанов, 
 - 🎲 реальный случайный выбор среди смешанных food & drink категорий;
 - bounded TTL-кэш provider-запросов; одинаковые одновременные запросы объединяются в один upstream-call;
 - configurable graceful failover: fallback endpoint используется только после `ProviderError` primary;
+- runtime-логи provider latency, cache hit/miss/coalescing/eviction и failover без координат пользователя;
 - ❤️ постоянное избранное в SQLite, изолированное по Telegram user ID;
 - Ruff + pytest;
 - Docker Compose build/config/smoke CI.
@@ -172,8 +173,8 @@ Provider abstraction позволяет позже добавить 2GIS или 
 1. Второй provider для рейтингов/отзывов/чека.
 2. Дедупликация одного заведения между источниками.
 3. Улучшенные сценарии «на свидание», «с детьми», «поздно вечером».
-4. Наблюдаемость provider latency/cache hit-rate и состояние failover.
-5. Production deployment profile после стабилизации локального runtime.
+4. Production deployment profile после стабилизации локального runtime.
+5. Второй data provider и cross-provider deduplication.
 
 
 ## Overpass failover
@@ -189,3 +190,22 @@ The OpenStreetMap Wiki maintains the current list and usage policies for public 
 instances:
 
 https://wiki.openstreetmap.org/wiki/Overpass_API
+
+
+## Runtime diagnostics
+
+Во время локального запуска:
+
+```powershell
+docker compose logs -f bot
+```
+
+можно увидеть безопасные диагностические события:
+
+- `overpass_request status=success|failed ... elapsed_ms=...`;
+- `provider_cache event=hit|miss|coalesced|eviction ...`;
+- `places_failover event=provider_failed|recovered ...`;
+- startup/shutdown summary.
+
+Эти сообщения намеренно не содержат Telegram token, координаты пользователя, текст Overpass query
+или полный URL endpoint с path/query/credentials.
