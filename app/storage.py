@@ -71,7 +71,11 @@ class FavoritesRepository:
                 await database.commit()
                 return False
 
-            persistent_venue = replace(venue, distance_m=None)
+            persistent_venue = replace(
+                venue,
+                distance_m=None,
+                is_open_now=None,
+            )
             payload = json.dumps(
                 asdict(persistent_venue),
                 ensure_ascii=False,
