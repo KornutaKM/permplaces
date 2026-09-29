@@ -22,5 +22,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - run: docker build -t permplaces:ci .
-      - run: docker run --rm permplaces:ci python -c "import app.main; print('docker-smoke-ok')"
+      - run: cp .env.example .env
+      - run: docker compose config --quiet
+      - run: docker compose build bot
+      - run: docker compose run --rm --no-deps bot python -c "import app.main; print('compose-smoke-ok')"

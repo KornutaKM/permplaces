@@ -4,7 +4,7 @@ Telegram-ассистент для поиска кафе, ресторанов, 
 
 ## Статус
 
-Версия 0.11 добавляет явный graceful failover между настроенными Overpass endpoints без скрытой отправки запросов сторонним операторам.
+Версия 0.12 добавляет проверенный Docker Compose workflow для локального запуска бота одной командой с persistent SQLite data.
 
 Рабочие вертикальные сценарии:
 
@@ -44,7 +44,7 @@ Telegram-ассистент для поиска кафе, ресторанов, 
 - configurable graceful failover: fallback endpoint используется только после `ProviderError` primary;
 - ❤️ постоянное избранное в SQLite, изолированное по Telegram user ID;
 - Ruff + pytest;
-- Docker build/smoke CI.
+- Docker Compose build/config/smoke CI.
 
 ## Принцип данных
 
@@ -66,7 +66,49 @@ PermPlaces не придумывает отсутствующие факты.
 
 Если `opening_hours` отсутствует, невалиден или вычисляется как `unknown`, заведение не считается открытым для фильтра «Открыто сейчас». Рейтинг, отзывы, средний чек и полноценное меню OpenStreetMap обычно не предоставляет — для них понадобится второй provider.
 
-## Локальный запуск
+## Быстрый запуск через Docker Compose
+
+Для локальной разработки Docker Compose — основной рекомендуемый путь.
+
+Сначала создайте локальный env-файл:
+
+```powershell
+Copy-Item .env.example .env
+notepad .env
+```
+
+Укажите реальный `BOT_TOKEN`. Сам токен не коммитьте и не публикуйте.
+
+Запуск:
+
+```powershell
+docker compose up -d --build
+```
+
+Проверка:
+
+```powershell
+docker compose ps
+docker compose logs -f bot
+```
+
+SQLite хранится в `./data/permplaces.db` на хосте и переживает пересоздание контейнера.
+
+Остановка:
+
+```powershell
+docker compose down
+```
+
+Перезапуск после изменений:
+
+```powershell
+docker compose up -d --build
+```
+
+Если Telegram отвечает `Conflict: terminated by other getUpdates request`, одновременно запущен другой экземпляр бота с тем же токеном. Проверьте `docker ps` и локальные Python-процессы и оставьте только один polling instance.
+
+## Локальный запуск без Docker
 
 Требуется Python 3.12+.
 
@@ -131,6 +173,7 @@ Provider abstraction позволяет позже добавить 2GIS или 
 2. Дедупликация одного заведения между источниками.
 3. Улучшенные сценарии «на свидание», «с детьми», «поздно вечером».
 4. Наблюдаемость provider latency/cache hit-rate и состояние failover.
+5. Production deployment profile после стабилизации локального runtime.
 
 
 ## Overpass failover
