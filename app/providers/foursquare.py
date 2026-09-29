@@ -5,6 +5,7 @@ from collections.abc import Mapping
 from datetime import datetime
 from time import monotonic
 from typing import Any
+from urllib.parse import urlsplit
 from zoneinfo import ZoneInfo
 
 import httpx
@@ -19,7 +20,7 @@ logger = logging.getLogger(__name__)
 _API_VERSION = "2025-06-17"
 _PERM_TIMEZONE = ZoneInfo("Asia/Yekaterinburg")
 _FIELDS = (
-    "fsq_place_id,name,latitude,longitude,location,tel,website,"
+    "fsq_place_id,name,latitude,longitude,location,tel,website,menu,"
     "rating,price,stats,attributes,hours"
 )
 
@@ -71,6 +72,16 @@ def _clean_text(value: object) -> str | None:
         return None
     cleaned = value.strip()
     return cleaned or None
+
+
+def _http_url(value: object) -> str | None:
+    cleaned = _clean_text(value)
+    if cleaned is None:
+        return None
+    parsed = urlsplit(cleaned)
+    if parsed.scheme not in {"http", "https"} or not parsed.netloc:
+        return None
+    return cleaned
 
 
 def _wifi_state(value: object) -> bool | None:
@@ -288,6 +299,7 @@ class FoursquareProvider:
                     is_open_late=True if filters and filters.open_late else None,
                     phone=_clean_text(item.get("tel")),
                     website=_clean_text(item.get("website")),
+                    menu_url=_http_url(item.get("menu")),
                     outdoor_seating=outdoor_state,
                     wifi=wifi_state,
                     price_label=_price_label(item.get("price")),
