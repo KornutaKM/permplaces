@@ -72,6 +72,15 @@ Inspect status:
 docker compose ps
 ```
 
+After initialization the container should report `healthy`. The image healthcheck calls
+`/health/ready` inside the container; the health port is not published to the host.
+
+The internal health endpoints are:
+
+- `GET /health/live` — process/event-loop liveness;
+- `GET /health/ready` — 200 only after local runtime initialization and SQLite setup;
+- readiness returns 503 again before graceful shutdown.
+
 Run a smoke import without starting polling:
 
 ```powershell

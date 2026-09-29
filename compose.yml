@@ -6,6 +6,8 @@ services:
     image: permplaces:local
     env_file:
       - .env
+    expose:
+      - "${HEALTH_PORT:-8080}"
     volumes:
       - ./data:/app/data
     restart: unless-stopped

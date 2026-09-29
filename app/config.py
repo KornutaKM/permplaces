@@ -29,6 +29,8 @@ class Settings(BaseSettings):
         alias="TWOGIS_URL",
     )
     twogis_timeout_seconds: float = Field(default=10.0, alias="TWOGIS_TIMEOUT_SECONDS")
+    health_host: str = Field(default="0.0.0.0", alias="HEALTH_HOST")
+    health_port: int = Field(default=8080, alias="HEALTH_PORT", ge=1, le=65535)
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 

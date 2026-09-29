@@ -25,4 +25,5 @@ jobs:
       - run: cp .env.example .env
       - run: docker compose config --quiet
       - run: docker compose build bot
+      - run: docker image inspect permplaces:local --format '{{json .Config.Healthcheck}}' | grep -q '/health/ready'
       - run: docker compose run --rm --no-deps bot python -c "import app.main; print('compose-smoke-ok')"
