@@ -35,6 +35,13 @@ _CATEGORY_NAMES = {
 }
 
 
+def _category_filter(category: str) -> str:
+    tag_filter = _CATEGORY_FILTERS.get(category)
+    if tag_filter is None:
+        raise ValueError(f"Unsupported category: {category}")
+    return tag_filter
+
+
 def build_overpass_query(
     *,
     category: str,
@@ -42,14 +49,27 @@ def build_overpass_query(
     longitude: float,
     radius_m: int,
 ) -> str:
-    tag_filter = _CATEGORY_FILTERS.get(category)
-    if tag_filter is None:
-        raise ValueError(f"Unsupported category: {category}")
-
+    tag_filter = _category_filter(category)
     return (
         "[out:json][timeout:20];\n"
         "(\n"
         f'  nwr(around:{radius_m},{latitude:.6f},{longitude:.6f}){tag_filter};\n'
+        ");\n"
+        "out center tags;"
+    )
+
+
+def build_area_query(*, category: str, relation_id: int) -> str:
+    if relation_id <= 0:
+        raise ValueError("relation_id must be positive")
+
+    tag_filter = _category_filter(category)
+    return (
+        "[out:json][timeout:25];\n"
+        f"rel({relation_id});\n"
+        "map_to_area -> .searchArea;\n"
+        "(\n"
+        f"  nwr(area.searchArea){tag_filter};\n"
         ");\n"
         "out center tags;"
     )
@@ -99,7 +119,7 @@ class OverpassProvider:
         self._owns_client = client is None
         self._client = client or httpx.AsyncClient(
             timeout=httpx.Timeout(timeout_seconds),
-            headers={"User-Agent": "PermPlaces/0.2 (+https://github.com/KornutaKM/permplaces)"},
+            headers={"User-Agent": "PermPlaces/0.4 (+https://github.com/KornutaKM/permplaces)"},
         )
 
     async def close(self) -> None:
@@ -121,7 +141,25 @@ class OverpassProvider:
             longitude=longitude,
             radius_m=radius_m,
         )
+        return await self._execute(query=query, category=category, limit=limit)
 
+    async def search_in_area(
+        self,
+        *,
+        category: str,
+        relation_id: int,
+        limit: int,
+    ) -> list[Venue]:
+        query = build_area_query(category=category, relation_id=relation_id)
+        return await self._execute(query=query, category=category, limit=limit)
+
+    async def _execute(
+        self,
+        *,
+        query: str,
+        category: str,
+        limit: int,
+    ) -> list[Venue]:
         try:
             response = await self._client.post(self._endpoint, data={"data": query})
             response.raise_for_status()
@@ -129,17 +167,23 @@ class OverpassProvider:
         except (httpx.HTTPError, ValueError) as exc:
             raise ProviderError("OpenStreetMap search is temporarily unavailable") from exc
 
+        if not isinstance(payload, Mapping):
+            raise ProviderError("OpenStreetMap returned an unexpected response")
+
         elements = payload.get("elements")
         if not isinstance(elements, list):
             raise ProviderError("OpenStreetMap returned an unexpected response")
 
         venues: list[Venue] = []
+        seen: set[str] = set()
         for element in elements:
             if not isinstance(element, Mapping):
                 continue
             venue = self._parse_element(element, category)
-            if venue is not None:
-                venues.append(venue)
+            if venue is None or venue.id in seen:
+                continue
+            seen.add(venue.id)
+            venues.append(venue)
             if len(venues) >= limit:
                 break
 

@@ -13,3 +13,11 @@ class PlacesProvider(Protocol):
         radius_m: int,
         limit: int,
     ) -> list[Venue]: ...
+
+    async def search_in_area(
+        self,
+        *,
+        category: str,
+        relation_id: int,
+        limit: int,
+    ) -> list[Venue]: ...
