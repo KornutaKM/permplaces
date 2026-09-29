@@ -128,7 +128,7 @@ class SearchService:
     ) -> list[Venue]:
         provider_limit = (
             max(150, limit * 30)
-            if filters is not None and filters.open_now
+            if filters is not None and (filters.open_now or filters.open_late)
             else max(50, limit * 10)
         )
         candidates = await self._provider.search_in_area(
@@ -137,7 +137,7 @@ class SearchService:
             limit=provider_limit,
             filters=filters,
         )
-        candidates = _filter_open_now(candidates, filters=filters)
+        candidates = _filter_opening(candidates, filters=filters)
         normalized = [
             replace(venue, district=district_name, distance_m=None)
             for venue in candidates
