@@ -45,6 +45,8 @@ async def test_provider_parses_node_and_way_center() -> None:
                             "addr:housenumber": "10",
                             "opening_hours": "Mo-Su 08:00-22:00",
                             "cuisine": "coffee_shop;breakfast",
+                            "contact:phone": "+7 342 000-00-00",
+                            "contact:website": "https://coffee.example",
                         },
                     },
                     {
@@ -75,6 +77,8 @@ async def test_provider_parses_node_and_way_center() -> None:
     assert venues[0].source == "osm"
     assert venues[0].source_id == "node/101"
     assert venues[0].cuisine == ("coffee_shop", "breakfast")
+    assert venues[0].phone == "+7 342 000-00-00"
+    assert venues[0].website == "https://coffee.example"
     assert venues[1].source_url.endswith("/way/202")
 
 
