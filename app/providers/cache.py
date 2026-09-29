@@ -128,16 +128,9 @@ class CachedPlacesProvider:
                 self._entries.pop(key, None)
 
             task = self._inflight.get(key)
-            created = task is None
             if task is None:
                 task = asyncio.create_task(fetch())
                 self._inflight[key] = task
-
-        # Give a newly-created upstream task one scheduling opportunity before
-        # this waiter parks on shield(). This keeps burst coalescing predictable
-        # under asyncio's cooperative scheduler.
-        if created:
-            await asyncio.sleep(0)
 
         try:
             venues = await asyncio.shield(task)
