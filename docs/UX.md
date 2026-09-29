@@ -1,6 +1,6 @@
 # PermPlaces UX direction
 
-This document freezes the first approved Telegram UX direction for the Perm pilot.
+This document freezes the approved Telegram UX direction for the Perm pilot.
 
 ## Product character
 
@@ -11,17 +11,18 @@ PermPlaces should feel like a compact city concierge rather than a database brow
 - One decision per screen.
 - Emoji act as category cues, not decoration.
 - Real provider data must never be invented.
-- Missing rating, opening-hours, menu or price data is shown as unavailable rather than guessed.
+- Missing rating, opening-hours, menu or price data is shown as unavailable or omitted.
+- Provider attribution and provenance must remain visible.
 
 ## Primary flow
 
 1. Start.
-2. Choose location: current geolocation, Perm district, or text search.
-3. Choose category or a ready-made scenario.
-4. Optionally apply filters.
-5. Browse result cards.
+2. Choose current geolocation.
+3. Choose category or a supported ready-made scenario.
+4. Optionally set radius.
+5. Browse nearest result cards.
 6. Open a venue.
-7. Route, menu, favorite, share.
+7. Send its map location or open its OSM source.
 
 ## Home
 
@@ -32,6 +33,8 @@ Primary actions:
 - 🔎 Поиск текстом
 - ✨ Сценарии
 - ❤️ Избранное
+
+District search remains a planned flow until exact Perm district boundaries are connected.
 
 ## Categories
 
@@ -45,21 +48,14 @@ Primary actions:
 - 🧁 Десерты
 - 🎲 Удиви меня
 
-## Perm districts
-
-- Дзержинский
-- Индустриальный
-- Кировский
-- Ленинский
-- Мотовилихинский
-- Орджоникидзевский
-- Свердловский
-
 ## Filters
 
-First iteration:
+Live in v0.2:
 
-- radius: 500 m / 1 km / 3 km / 5 km;
+- radius: 500 m / 1 km / 3 km / 5 km.
+
+Visible but intentionally not applied until a provider can support them reliably:
+
 - price level;
 - open now;
 - terrace.
@@ -76,51 +72,43 @@ Later:
 
 ## Venue card
 
-The card should contain only sourced facts:
+The card contains only sourced facts:
 
 - name;
-- provider rating + review count;
-- categories / cuisine;
-- price level;
-- distance;
-- opening status;
-- address;
-- optional photo.
+- provider-backed category;
+- calculated distance;
+- address when present;
+- raw OSM opening_hours when present;
+- cuisine tags when present;
+- provider/source attribution.
+
+OSM does not supply PermPlaces with a platform rating or review count, so those fields are omitted.
 
 Actions:
 
 - Подробнее
 - Маршрут
-- Меню
-- В избранное
-- Поделиться
+- Открыть в OSM
+- В избранное (planned persistence)
 - Следующее / Предыдущее
-
-## Ready-made scenarios
-
-- ☕ Выпить кофе
-- 🍽 Поесть
-- 🥐 Позавтракать
-- 🍺 Выпить
-- ❤️ На свидание
-- 👨‍👩‍👧 С детьми
-- 💻 Поработать (Wi-Fi)
-- 🌙 Поздно вечером
-- 🎲 Куда-нибудь
-
-Scenarios are search presets. They must remain explainable and resolve into explicit filters.
 
 ## Data-state rules
 
 The UI must distinguish:
 
-- verified provider data;
-- owner-managed data;
+- provider data;
+- locally calculated data such as distance;
 - unavailable fields;
-- demo/development fixtures.
+- future owner-managed data.
 
-Demo fixtures must be visibly marked and must never look like verified Perm establishments.
+The bot must never transform an unavailable field into a guessed value.
+
+## Provider rules
+
+Current provider: OpenStreetMap through Overpass API.
+
+Each venue keeps provider identity and the exact OSM object ID. OSM-derived surfaces must expose attribution to OpenStreetMap contributors and the ODbL license.
 
 ## Next UX milestone
 
-Replace demo fixtures with a provider abstraction returning real Perm venues while preserving the same screens and callbacks.
+Connect exact Perm district search and persistent favorites while preserving this navigation model.
