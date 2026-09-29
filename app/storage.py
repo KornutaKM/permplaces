@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import json
-from dataclasses import asdict
+from dataclasses import asdict, replace
 from pathlib import Path
 from typing import Any
 
@@ -69,7 +69,12 @@ class FavoritesRepository:
                 await database.commit()
                 return False
 
-            payload = json.dumps(asdict(venue), ensure_ascii=False, separators=(",", ":"))
+            persistent_venue = replace(venue, distance_m=None)
+            payload = json.dumps(
+                asdict(persistent_venue),
+                ensure_ascii=False,
+                separators=(",", ":"),
+            )
             await database.execute(
                 """
                 INSERT INTO favorites (user_id, venue_id, payload)
