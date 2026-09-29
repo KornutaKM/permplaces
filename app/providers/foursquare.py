@@ -124,15 +124,15 @@ class FoursquareProvider:
 
         self._endpoint = endpoint
         self._endpoint_label = endpoint_label(endpoint)
+        self._headers = {
+            "Accept": "application/json",
+            "Authorization": f"Bearer {api_key.strip()}",
+            "User-Agent": "PermPlaces/0.20 (+https://github.com/KornutaKM/permplaces)",
+            "X-Places-Api-Version": _API_VERSION,
+        }
         self._owns_client = client is None
         self._client = client or httpx.AsyncClient(
             timeout=httpx.Timeout(timeout_seconds),
-            headers={
-                "Accept": "application/json",
-                "Authorization": f"Bearer {api_key.strip()}",
-                "User-Agent": "PermPlaces/0.20 (+https://github.com/KornutaKM/permplaces)",
-                "X-Places-Api-Version": _API_VERSION,
-            },
         )
 
     async def close(self) -> None:
@@ -168,7 +168,11 @@ class FoursquareProvider:
 
         started_at = monotonic()
         try:
-            response = await self._client.get(self._endpoint, params=params)
+            response = await self._client.get(
+                self._endpoint,
+                params=params,
+                headers=self._headers,
+            )
             response.raise_for_status()
             payload = response.json()
         except (httpx.HTTPError, ValueError) as exc:
