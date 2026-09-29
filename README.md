@@ -4,7 +4,7 @@ Telegram-ассистент для поиска кафе, ресторанов, 
 
 ## Статус
 
-Версия 0.17 добавляет внутренние liveness/readiness endpoints и Docker healthcheck для предсказуемого локального и будущего production runtime.
+Версия 0.18 усиливает Docker runtime: non-root user, read-only root filesystem, dropped capabilities и bounded CPU/RAM/PIDs.
 
 Рабочие вертикальные сценарии:
 
@@ -53,7 +53,8 @@ Telegram-ассистент для поиска кафе, ресторанов, 
 - опциональный 2GIS Places provider для nearby-поиска при заданном `TWOGIS_API_KEY`;
 - provider-aware source attribution в карточке;
 - `/health/live` и `/health/ready` внутри контейнера;
-- Docker HEALTHCHECK, который показывает `healthy` только после runtime + SQLite initialization.
+- Docker HEALTHCHECK, который показывает `healthy` только после runtime + SQLite initialization;
+- hardened container runtime: UID 10001, read-only root FS, `cap_drop: ALL`, `no-new-privileges`, resource limits.
 
 ## Принцип данных
 
@@ -101,7 +102,7 @@ docker compose ps
 docker compose logs -f bot
 ```
 
-SQLite хранится в `./data/permplaces.db` на хосте и переживает пересоздание контейнера.
+SQLite хранится в Docker named volume `permplaces-data` и переживает пересоздание контейнера. `docker compose down -v` удалит этот volume вместе с локальным избранным.
 
 Остановка:
 
@@ -191,7 +192,7 @@ Provider abstraction теперь включает deterministic aggregation и 
 1. Исследовать отдельный источник, который легально отдаёт rating/review values; 2GIS Places API 3.0 стандартно отдаёт только наличие rating/reviews, не значения/тексты.
 2. Добавить average-check enrichment только после region-specific attribute discovery и provenance.
 3. Сценарий «На свидание» после появления достаточно надёжных признаков.
-4. Production deployment profile: non-root image, resource limits и deployment runbook.
+4. Production deployment runbook: secrets, backups, restore drill и deploy/rollback procedure.
 
 
 ## Overpass failover
@@ -293,3 +294,21 @@ The Docker image uses `/health/ready` for its built-in `HEALTHCHECK`.
 
 Compose does not publish this port to the host. It is an internal runtime signal rather than a
 public HTTP API. `docker compose ps` shows the resulting container health state.
+
+
+## Container security profile
+
+The default Compose runtime uses defense-in-depth controls:
+
+- dedicated non-root UID/GID `10001:10001`;
+- read-only container root filesystem;
+- `/tmp` as a small tmpfs;
+- SQLite stored in the writable `permplaces-data` named volume;
+- all Linux capabilities dropped;
+- `no-new-privileges:true`;
+- `pids_limit: 128`;
+- `mem_limit: 256m`;
+- `cpus: 1.0`.
+
+CI verifies the image user is non-root, the data volume remains writable, and writes to the
+container root filesystem fail as expected.
