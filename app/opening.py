@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime
+from enum import StrEnum
 
 from opening_hours import (
     InvalidCoordinatesError,
@@ -10,7 +11,7 @@ from opening_hours import (
 )
 
 
-class OpeningState(str):
+class OpeningState(StrEnum):
     OPEN = "open"
     CLOSED = "closed"
     UNKNOWN = "unknown"
@@ -22,7 +23,7 @@ def opening_state(
     latitude: float,
     longitude: float,
     at: datetime | None = None,
-) -> str:
+) -> OpeningState:
     if not value or not value.strip():
         return OpeningState.UNKNOWN
 
