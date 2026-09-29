@@ -8,16 +8,7 @@ from aiogram.types import (
 )
 
 from app.data import Venue
-
-DISTRICTS = (
-    "Дзержинский",
-    "Индустриальный",
-    "Кировский",
-    "Ленинский",
-    "Мотовилихинский",
-    "Орджоникидзевский",
-    "Свердловский",
-)
+from app.districts import PERM_DISTRICTS
 
 CATEGORY_LABELS = {
     "restaurant": "🍽 Рестораны",
@@ -62,8 +53,13 @@ def districts_keyboard() -> InlineKeyboardMarkup:
     rows = [
         [InlineKeyboardButton(text="📍 Вся Пермь", callback_data="district:all")],
         *[
-            [InlineKeyboardButton(text=name, callback_data=f"district:{index}")]
-            for index, name in enumerate(DISTRICTS)
+            [
+                InlineKeyboardButton(
+                    text=district.name,
+                    callback_data=f"district:{district.key}",
+                )
+            ]
+            for district in PERM_DISTRICTS
         ],
     ]
     return InlineKeyboardMarkup(inline_keyboard=rows)
