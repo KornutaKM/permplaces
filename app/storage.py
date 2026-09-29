@@ -54,6 +54,8 @@ class FavoritesRepository:
 
     async def toggle(self, *, user_id: int, venue: Venue) -> bool:
         async with aiosqlite.connect(self._database_path) as database:
+            await database.execute("PRAGMA busy_timeout=5000")
+            await database.execute("BEGIN IMMEDIATE")
             cursor = await database.execute(
                 "SELECT 1 FROM favorites WHERE user_id = ? AND venue_id = ?",
                 (user_id, venue.id),
