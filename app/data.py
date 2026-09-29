@@ -19,6 +19,8 @@ class Venue:
     phone: str | None = None
     website: str | None = None
     cuisine: tuple[str, ...] = ()
+    outdoor_seating: bool | None = None
+    wifi: bool | None = None
     price_label: str | None = None
     rating: float | None = None
     review_count: int | None = None
