@@ -45,7 +45,9 @@ async def main() -> None:
 
     aggregate_providers = [osm_cache]
     caches = [("osm", osm_cache)]
-    closable_providers: list[object] = [*overpass_providers]
+    closable_providers: list[OverpassProvider | TwoGISProvider] = [
+        *overpass_providers
+    ]
 
     twogis_provider: TwoGISProvider | None = None
     if settings.twogis_api_key.strip():
@@ -98,12 +100,9 @@ async def main() -> None:
                 cache_stats.entries,
             )
 
-        close_calls = [
-            provider.close()
-            for provider in closable_providers
-            if hasattr(provider, "close")
-        ]
-        await asyncio.gather(*close_calls)
+        await asyncio.gather(
+            *(provider.close() for provider in closable_providers)
+        )
         await bot.session.close()
 
 
