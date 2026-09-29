@@ -8,6 +8,7 @@ from aiogram.enums import ParseMode
 from app.bot import router
 from app.config import load_settings
 from app.providers.cache import CachedPlacesProvider
+from app.providers.composite import CompositePlacesProvider
 from app.providers.failover import FailoverPlacesProvider
 from app.providers.overpass import OverpassProvider
 from app.search import SearchService
@@ -40,7 +41,8 @@ async def main() -> None:
         ttl_seconds=settings.provider_cache_ttl_seconds,
         max_entries=settings.provider_cache_max_entries,
     )
-    search_service = SearchService(cached_provider)
+    composite_provider = CompositePlacesProvider([cached_provider])
+    search_service = SearchService(composite_provider)
     favorites_repository = FavoritesRepository(settings.database_path)
     await favorites_repository.initialize()
 
