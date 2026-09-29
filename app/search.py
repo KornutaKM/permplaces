@@ -1,8 +1,10 @@
 from dataclasses import replace
+from datetime import datetime, timezone
 from math import asin, cos, radians, sin, sqrt
 
 from app.data import Venue
 from app.filters import PlaceFilters
+from app.opening import OpeningState, opening_state
 from app.providers.base import PlacesProvider
 
 
@@ -25,6 +27,28 @@ def distance_m(
     return round(2 * earth_radius_m * asin(sqrt(haversine)))
 
 
+def _filter_open_now(
+    venues: list[Venue],
+    *,
+    filters: PlaceFilters | None,
+) -> list[Venue]:
+    if filters is None or not filters.open_now:
+        return venues
+
+    at = datetime.now(timezone.utc)
+    opened: list[Venue] = []
+    for venue in venues:
+        state = opening_state(
+            venue.opening_hours,
+            latitude=venue.latitude,
+            longitude=venue.longitude,
+            at=at,
+        )
+        if state is OpeningState.OPEN:
+            opened.append(replace(venue, is_open_now=True))
+    return opened
+
+
 class SearchService:
     def __init__(self, provider: PlacesProvider) -> None:
         self._provider = provider
@@ -39,14 +63,20 @@ class SearchService:
         limit: int = 5,
         filters: PlaceFilters | None = None,
     ) -> list[Venue]:
+        provider_limit = (
+            max(80, limit * 16)
+            if filters is not None and filters.open_now
+            else max(25, limit * 4)
+        )
         candidates = await self._provider.search_nearby(
             category=category,
             latitude=latitude,
             longitude=longitude,
             radius_m=radius_m,
-            limit=max(25, limit * 4),
+            limit=provider_limit,
             filters=filters,
         )
+        candidates = _filter_open_now(candidates, filters=filters)
 
         with_distance = [
             replace(
@@ -79,12 +109,18 @@ class SearchService:
         limit: int = 5,
         filters: PlaceFilters | None = None,
     ) -> list[Venue]:
+        provider_limit = (
+            max(150, limit * 30)
+            if filters is not None and filters.open_now
+            else max(50, limit * 10)
+        )
         candidates = await self._provider.search_in_area(
             category=category,
             relation_id=relation_id,
-            limit=max(50, limit * 10),
+            limit=provider_limit,
             filters=filters,
         )
+        candidates = _filter_open_now(candidates, filters=filters)
         normalized = [
             replace(venue, district=district_name, distance_m=None)
             for venue in candidates
