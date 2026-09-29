@@ -1,3 +1,5 @@
+from html import escape
+
 from aiogram.types import (
     InlineKeyboardButton,
     InlineKeyboardMarkup,
@@ -110,49 +112,92 @@ def scenarios_keyboard() -> InlineKeyboardMarkup:
     )
 
 
-def results_keyboard(venue_id: str) -> InlineKeyboardMarkup:
-    return InlineKeyboardMarkup(
-        inline_keyboard=[
-            [InlineKeyboardButton(text="Подробнее", callback_data=f"venue:{venue_id}")],
-            [InlineKeyboardButton(text="❤️ В избранное", callback_data=f"favorite:{venue_id}")],
-            [
-                InlineKeyboardButton(text="← Предыдущее", callback_data="results:prev"),
-                InlineKeyboardButton(text="Следующее →", callback_data="results:next"),
-            ],
-        ]
-    )
+def results_keyboard(
+    venue_id: str,
+    *,
+    can_previous: bool,
+    can_next: bool,
+) -> InlineKeyboardMarkup:
+    navigation: list[InlineKeyboardButton] = []
+    if can_previous:
+        navigation.append(
+            InlineKeyboardButton(text="← Предыдущее", callback_data="results:prev")
+        )
+    if can_next:
+        navigation.append(InlineKeyboardButton(text="Следующее →", callback_data="results:next"))
+
+    rows: list[list[InlineKeyboardButton]] = [
+        [InlineKeyboardButton(text="Подробнее", callback_data=f"venue:{venue_id}")],
+        [InlineKeyboardButton(text="❤️ В избранное", callback_data=f"favorite:{venue_id}")],
+    ]
+    if navigation:
+        rows.append(navigation)
+    rows.append([InlineKeyboardButton(text="← К категориям", callback_data="nav:categories")])
+    return InlineKeyboardMarkup(inline_keyboard=rows)
 
 
-def venue_keyboard(venue_id: str) -> InlineKeyboardMarkup:
-    return InlineKeyboardMarkup(
-        inline_keyboard=[
-            [
-                InlineKeyboardButton(text="📍 Маршрут", callback_data=f"route:{venue_id}"),
-                InlineKeyboardButton(text="📖 Меню", callback_data=f"menu:{venue_id}"),
-            ],
-            [
-                InlineKeyboardButton(text="❤️ В избранное", callback_data=f"favorite:{venue_id}"),
-                InlineKeyboardButton(text="↗️ Поделиться", switch_inline_query=f"PermPlaces {venue_id}"),
-            ],
-            [InlineKeyboardButton(text="← Назад", callback_data="nav:categories")],
-        ]
-    )
+def venue_keyboard(venue: Venue) -> InlineKeyboardMarkup:
+    rows: list[list[InlineKeyboardButton]] = [
+        [
+            InlineKeyboardButton(text="📍 Маршрут", callback_data=f"route:{venue.id}"),
+            InlineKeyboardButton(text="📖 Меню", callback_data=f"menu:{venue.id}"),
+        ],
+        [
+            InlineKeyboardButton(text="❤️ В избранное", callback_data=f"favorite:{venue.id}"),
+            InlineKeyboardButton(text="↗️ Поделиться", switch_inline_query=f"PermPlaces {venue.name}"),
+        ],
+    ]
+    if venue.source_url:
+        rows.append([InlineKeyboardButton(text="🗺 Открыть в OSM", url=venue.source_url)])
+    rows.append([InlineKeyboardButton(text="← Назад к результатам", callback_data="results:current")])
+    return InlineKeyboardMarkup(inline_keyboard=rows)
+
+
+def _format_distance(distance: int | None) -> str | None:
+    if distance is None:
+        return None
+    if distance < 1000:
+        return f"📏 {distance} м"
+    return f"📏 {distance / 1000:.1f} км"
 
 
 def render_venue_card(venue: Venue, *, position: int = 1, total: int = 1) -> str:
-    rating = (
-        f"⭐ {venue.rating:.1f} ({venue.review_count})"
-        if venue.rating is not None and venue.review_count is not None
-        else "⭐ Рейтинг появится после подключения провайдера"
-    )
-    hours = f"🕐 До {venue.open_until}" if venue.open_until else "🕐 Часы работы уточняются"
+    lines = [f"<b>{escape(venue.name)}</b>  <i>{position}/{total}</i>"]
 
-    return (
-        f"<b>{venue.name}</b>  <i>{position}/{total}</i>\n"
-        f"{rating}\n"
-        f"{venue.category_label} · {venue.price_label}\n"
-        f"📍 {venue.address}\n"
-        f"{hours}\n\n"
-        "🧪 <i>Сейчас это демонстрационная карточка интерфейса. "
-        "Реальные данные заведений подключим через provider API.</i>"
-    )
+    if venue.rating is not None:
+        rating = f"⭐ {venue.rating:.1f}"
+        if venue.review_count is not None:
+            rating += f" ({venue.review_count})"
+        lines.append(rating)
+
+    details = [escape(venue.category_label)]
+    if venue.price_label:
+        details.append(escape(venue.price_label))
+    lines.append(" · ".join(details))
+
+    distance = _format_distance(venue.distance_m)
+    if distance:
+        lines.append(distance)
+
+    if venue.address:
+        lines.append(f"📍 {escape(venue.address)}")
+    else:
+        lines.append("📍 Адрес не указан в OpenStreetMap")
+
+    if venue.opening_hours:
+        lines.append(f"🕐 {escape(venue.opening_hours)}")
+
+    if venue.cuisine:
+        cuisine = ", ".join(item.replace("_", " ") for item in venue.cuisine[:4])
+        lines.append(f"🍴 {escape(cuisine)}")
+
+    if venue.source == "osm":
+        lines.extend(
+            [
+                "",
+                '<i>Данные: <a href="https://www.openstreetmap.org/copyright">'
+                "© OpenStreetMap contributors</a> · ODbL</i>",
+            ]
+        )
+
+    return "\n".join(lines)
