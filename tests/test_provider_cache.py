@@ -12,6 +12,7 @@ class FakeProvider:
         self.nearby_calls = 0
         self.area_calls = 0
         self.release = asyncio.Event()
+        self.started = asyncio.Event()
         self.block = False
 
     async def search_nearby(
@@ -26,6 +27,7 @@ class FakeProvider:
     ) -> list[Venue]:
         del category, latitude, longitude, radius_m, limit, filters
         self.nearby_calls += 1
+        self.started.set()
         if self.block:
             await self.release.wait()
         return [
@@ -171,6 +173,7 @@ async def test_identical_concurrent_misses_are_coalesced() -> None:
         )
     )
 
+    await asyncio.wait_for(provider.started.wait(), timeout=1)
     await asyncio.sleep(0)
     assert provider.nearby_calls == 1
 
