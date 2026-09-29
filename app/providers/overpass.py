@@ -188,7 +188,7 @@ class OverpassProvider:
         self._owns_client = client is None
         self._client = client or httpx.AsyncClient(
             timeout=httpx.Timeout(timeout_seconds),
-            headers={"User-Agent": "PermPlaces/0.9 (+https://github.com/KornutaKM/permplaces)"},
+            headers={"User-Agent": "PermPlaces/0.10 (+https://github.com/KornutaKM/permplaces)"},
         )
 
     async def close(self) -> None:
@@ -313,6 +313,11 @@ class OverpassProvider:
             website=(
                 (tags.get("contact:website") or tags.get("website")).strip()
                 if isinstance(tags.get("contact:website") or tags.get("website"), str)
+                else None
+            ),
+            menu_url=(
+                tags.get("website:menu").strip()
+                if isinstance(tags.get("website:menu"), str)
                 else None
             ),
             cuisine=_split_tag(tags.get("cuisine")),
