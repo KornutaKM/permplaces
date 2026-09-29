@@ -238,7 +238,7 @@ def render_venue_card(venue: Venue, *, position: int = 1, total: int = 1) -> str
     if venue.address:
         lines.append(f"📍 {escape(venue.address)}")
     else:
-        lines.append("📍 Адрес не указан в OpenStreetMap")
+        lines.append("📍 Адрес не указан источником")
 
     if venue.district:
         lines.append(f"🏙 {escape(venue.district)}")
@@ -275,15 +275,21 @@ def render_venue_card(venue: Venue, *, position: int = 1, total: int = 1) -> str
     if venue.phone:
         lines.append(f"☎️ {escape(venue.phone)}")
 
-    if venue.source == "osm":
-        lines.extend(
-            [
-                "",
-                (
-                    '<i>Данные: <a href="https://www.openstreetmap.org/copyright">'
-                    "© OpenStreetMap contributors</a> · ODbL</i>"
-                ),
-            ]
+    providers = {
+        ref.provider
+        for ref in venue.source_refs
+    } or {venue.source}
+
+    attribution: list[str] = []
+    if "osm" in providers:
+        attribution.append(
+            '<a href="https://www.openstreetmap.org/copyright">'
+            "© OpenStreetMap contributors</a> · ODbL"
         )
+    if "2gis" in providers:
+        attribution.append("2ГИС")
+
+    if attribution:
+        lines.extend(["", "<i>Источники: " + "; ".join(attribution) + "</i>"])
 
     return "\n".join(lines)

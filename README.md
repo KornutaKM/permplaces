@@ -4,7 +4,7 @@ Telegram-ассистент для поиска кафе, ресторанов, 
 
 ## Статус
 
-Версия 0.15 закладывает multi-provider foundation: deterministic dedup, source identities и field-level provenance без изменения текущего OSM UX.
+Версия 0.16 добавляет opt-in 2GIS Places provider для nearby-поиска поверх multi-provider provenance/dedup слоя.
 
 Рабочие вертикальные сценарии:
 
@@ -49,7 +49,9 @@ Telegram-ассистент для поиска кафе, ресторанов, 
 - Ruff + pytest;
 - Docker Compose build/config/smoke CI;
 - multi-provider aggregation foundation с conservative dedup;
-- source-level и field-level provenance для объединённых карточек.
+- source-level и field-level provenance для объединённых карточек;
+- опциональный 2GIS Places provider для nearby-поиска при заданном `TWOGIS_API_KEY`;
+- provider-aware source attribution в карточке.
 
 ## Принцип данных
 
@@ -138,6 +140,11 @@ OVERPASS_TIMEOUT_SECONDS=20
 DATABASE_PATH=data/permplaces.db
 PROVIDER_CACHE_TTL_SECONDS=120
 PROVIDER_CACHE_MAX_ENTRIES=256
+
+# Optional: no 2GIS requests are made while this is empty.
+TWOGIS_API_KEY=
+TWOGIS_URL=https://catalog.api.2gis.com/3.0/items
+TWOGIS_TIMEOUT_SECONDS=10
 ```
 
 Запуск:
@@ -167,17 +174,17 @@ CompositePlacesProvider
    ↓
 Cached / failover provider adapters
    ↓
-OverpassProvider (+ future providers)
+OverpassProvider + optional TwoGISProvider
    ↓
-OpenStreetMap / future catalogs
+OpenStreetMap + 2GIS Places API
 ```
 
 Provider abstraction теперь включает deterministic aggregation и provenance, поэтому второй источник можно подключать без смешивания фактов или переписывания Telegram UX.
 
 ## Следующие этапы
 
-1. Подключить второй provider для рейтингов/отзывов/чека поверх готового provenance/dedup слоя.
-2. Добавить provider-specific attribution в UI для рейтинга/отзывов.
+1. Исследовать отдельный источник, который легально отдаёт rating/review values; 2GIS Places API 3.0 стандартно отдаёт только наличие rating/reviews, не значения/тексты.
+2. Добавить average-check enrichment только после region-specific attribute discovery и provenance.
 3. Сценарий «На свидание» после появления достаточно надёжных признаков.
 4. Production deployment profile после стабилизации локального runtime.
 
@@ -235,3 +242,34 @@ PermPlaces определяет «поздно вечером» как **23:00 �
 (Asia/Yekaterinburg)**. Заведение включается только если валидный OSM `opening_hours`
 показывает состояние open в этот момент. Missing/invalid/unknown график fail-closed и не
 попадает в результат.
+
+
+## 2GIS provider (optional)
+
+PermPlaces does **not** call 2GIS by default. The provider is enabled only when
+`TWOGIS_API_KEY` is non-empty.
+
+Current v0.16 scope:
+
+- nearby search by category and coordinates;
+- exact radius passed to Places API;
+- active organization branches only;
+- provider-backed `work_time=now` and `work_time=today,23:00`;
+- address and WGS84 coordinates;
+- deterministic merge with OSM through the v0.15 provenance layer.
+
+Deliberately unsupported in the 2GIS adapter:
+
+- district mode: OSM polygon relations remain authoritative;
+- Wi-Fi, terrace and family filters: 2GIS attribute codes vary by region/request, so the
+  adapter returns no candidates instead of silently ignoring those filters;
+- combined «open now + open at 23:00» in one request;
+- `food_drink` surprise query;
+- rating values and review text. Current Places API 3.0 can filter by the *presence* of
+  ratings/reviews, but standard retrieval of their values/content is not supported.
+
+Official documentation:
+
+- https://docs.2gis.com/en/api/search/places/overview
+- https://docs.2gis.com/en/api/search/places/reference/3.0/items
+- https://docs.2gis.com/en/api/search/places/examples/filtering

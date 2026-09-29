@@ -249,3 +249,58 @@ async def test_open_late_filter_uses_opening_hours_fail_closed() -> None:
 
     assert [venue.id for venue in venues] == ["open"]
     assert venues[0].is_open_late is True
+
+
+
+class ProviderVerifiedOpenProvider:
+    async def search_nearby(
+        self,
+        *,
+        category: str,
+        latitude: float,
+        longitude: float,
+        radius_m: int,
+        limit: int,
+        filters: PlaceFilters | None = None,
+    ) -> list[Venue]:
+        del category, latitude, longitude, radius_m, limit, filters
+        return [
+            Venue(
+                id="2gis:1",
+                name="Provider verified",
+                category="cafe",
+                category_label="Кофейня",
+                latitude=58.01,
+                longitude=56.25,
+                source="2gis",
+                source_id="1",
+                is_open_now=True,
+            )
+        ]
+
+    async def search_in_area(
+        self,
+        *,
+        category: str,
+        relation_id: int,
+        limit: int,
+        filters: PlaceFilters | None = None,
+    ) -> list[Venue]:
+        del category, relation_id, limit, filters
+        return []
+
+
+@pytest.mark.asyncio
+async def test_search_accepts_provider_verified_open_now_without_osm_hours() -> None:
+    service = SearchService(ProviderVerifiedOpenProvider())
+
+    venues = await service.nearby(
+        category="cafe",
+        latitude=58.01,
+        longitude=56.25,
+        radius_m=1000,
+        limit=5,
+        filters=PlaceFilters(open_now=True),
+    )
+
+    assert [venue.id for venue in venues] == ["2gis:1"]

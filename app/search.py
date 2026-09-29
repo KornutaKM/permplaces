@@ -40,7 +40,7 @@ def _filter_opening(
     for venue in venues:
         current = venue
 
-        if filters.open_now:
+        if filters.open_now and current.is_open_now is not True:
             state = opening_state(
                 venue.opening_hours,
                 latitude=venue.latitude,
@@ -50,7 +50,7 @@ def _filter_opening(
                 continue
             current = replace(current, is_open_now=True)
 
-        if filters.open_late:
+        if filters.open_late and current.is_open_late is not True:
             state = opening_state(
                 venue.opening_hours,
                 latitude=venue.latitude,

@@ -1,4 +1,4 @@
-from app.data import Venue
+from app.data import SourceRef, Venue
 from app.ui import filters_keyboard, render_venue_card, venue_keyboard
 
 
@@ -180,3 +180,47 @@ def test_card_shows_family_features_and_late_state() -> None:
     assert "детская зона" in card
     assert "детский стульчик" in card
     assert "пеленальный столик" in card
+
+
+
+def test_card_shows_all_merged_provider_attributions() -> None:
+    venue = Venue(
+        id="osm:node/8",
+        name="Объединённое место",
+        category="cafe",
+        category_label="Кофейня",
+        latitude=58.01,
+        longitude=56.25,
+        source="osm",
+        source_id="node/8",
+        source_refs=(
+            SourceRef("osm", "node/8"),
+            SourceRef("2gis", "70000001000000008"),
+        ),
+    )
+
+    card = render_venue_card(venue)
+
+    assert "OpenStreetMap contributors" in card
+    assert "2ГИС" in card
+    assert "Источники:" in card
+
+
+def test_non_osm_missing_address_message_is_provider_neutral() -> None:
+    venue = Venue(
+        id="2gis:1",
+        name="2GIS место",
+        category="cafe",
+        category_label="Кофейня",
+        latitude=58.01,
+        longitude=56.25,
+        source="2gis",
+        source_id="1",
+        source_refs=(SourceRef("2gis", "1"),),
+    )
+
+    card = render_venue_card(venue)
+
+    assert "Адрес не указан источником" in card
+    assert "2ГИС" in card
+    assert "OpenStreetMap" not in card
