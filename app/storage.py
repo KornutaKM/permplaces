@@ -7,7 +7,7 @@ from typing import Any
 
 import aiosqlite
 
-from app.data import Venue
+from app.data import FieldSource, SourceRef, Venue
 
 
 def _venue_from_payload(payload: str) -> Venue | None:
@@ -22,6 +22,22 @@ def _venue_from_payload(payload: str) -> Venue | None:
     cuisine = value.get("cuisine")
     if isinstance(cuisine, list):
         value["cuisine"] = tuple(str(item) for item in cuisine)
+
+    source_refs = value.get("source_refs")
+    if isinstance(source_refs, list):
+        value["source_refs"] = tuple(
+            SourceRef(**item)
+            for item in source_refs
+            if isinstance(item, dict)
+        )
+
+    field_sources = value.get("field_sources")
+    if isinstance(field_sources, list):
+        value["field_sources"] = tuple(
+            FieldSource(**item)
+            for item in field_sources
+            if isinstance(item, dict)
+        )
 
     try:
         return Venue(**value)
