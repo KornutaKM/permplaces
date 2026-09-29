@@ -116,10 +116,12 @@ def test_card_shows_only_confirmed_osm_features() -> None:
         source_id="node/6",
         outdoor_seating=True,
         wifi=True,
+        is_open_now=True,
     )
 
     card = render_venue_card(venue)
 
+    assert "🟢 Открыто сейчас" in card
     assert "🌿 Есть места на улице / терраса" in card
     assert "📶 Есть Wi-Fi" in card
 
@@ -130,6 +132,7 @@ def test_filter_keyboard_marks_active_osm_filters() -> None:
         location_scope=True,
         outdoor_seating=True,
         wifi=True,
+        open_now=True,
     )
     labels = [
         button.text
@@ -140,6 +143,7 @@ def test_filter_keyboard_marks_active_osm_filters() -> None:
     assert "✅ 1 км" in labels
     assert "✅ 🌿 С верандой" in labels
     assert "✅ 📶 Wi-Fi" in labels
+    assert "✅ 🟢 Открыто сейчас" in labels
 
 
 def test_district_filter_keyboard_blocks_radius() -> None:
