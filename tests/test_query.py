@@ -57,12 +57,12 @@ def test_unknown_text_stays_explicitly_unparsed() -> None:
     assert parsed.nearby is False
 
 
-
 def test_negated_features_do_not_enable_filters() -> None:
     parsed = parse_search_query("кафе без Wi-Fi и без веранды")
 
     assert parsed.filters == PlaceFilters()
-
+    assert parsed.outdoor_seating is False
+    assert parsed.wifi is False
 
 
 def test_parse_nearby_intent() -> None:
@@ -70,4 +70,5 @@ def test_parse_nearby_intent() -> None:
 
     assert parsed.category == "cafe"
     assert parsed.filters.wifi is True
+    assert parsed.wifi is True
     assert parsed.nearby is True
