@@ -228,6 +228,13 @@ async def text_search(
         )
         return
 
+    if parsed.invalid_radius:
+        await message.answer(
+            "Радиус в текстовом поиске должен быть от 100 м до 10 км. "
+            "Например: «кофе рядом 1,5 км»."
+        )
+        return
+
     data = await state.get_data()
     plan = plan_search_query(parsed, data)
     await state.update_data(**plan.updates)
