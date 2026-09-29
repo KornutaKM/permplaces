@@ -1,4 +1,5 @@
 from html import escape
+from urllib.parse import urlsplit
 
 from aiogram.types import (
     InlineKeyboardButton,
@@ -132,17 +133,35 @@ def results_keyboard(
     return InlineKeyboardMarkup(inline_keyboard=rows)
 
 
+def _safe_http_url(value: str | None) -> str | None:
+    if not value:
+        return None
+
+    candidate = value.strip()
+    parsed = urlsplit(candidate)
+    if parsed.scheme not in {"http", "https"} or not parsed.netloc:
+        return None
+    return candidate
+
+
 def venue_keyboard(venue: Venue) -> InlineKeyboardMarkup:
     rows: list[list[InlineKeyboardButton]] = [
         [
             InlineKeyboardButton(text="📍 Маршрут", callback_data=f"route:{venue.id}"),
             InlineKeyboardButton(text="📖 Меню", callback_data=f"menu:{venue.id}"),
         ],
+    ]
+
+    website_url = _safe_http_url(venue.website)
+    if website_url:
+        rows.append([InlineKeyboardButton(text="🌐 Сайт", url=website_url)])
+
+    rows.append(
         [
             InlineKeyboardButton(text="❤️ В избранное", callback_data=f"favorite:{venue.id}"),
             InlineKeyboardButton(text="↗️ Поделиться", switch_inline_query=f"PermPlaces {venue.name}"),
-        ],
-    ]
+        ]
+    )
     if venue.source_url:
         rows.append([InlineKeyboardButton(text="🗺 Открыть в OSM", url=venue.source_url)])
     rows.append([InlineKeyboardButton(text="← Назад к результатам", callback_data="results:current")])
@@ -180,12 +199,18 @@ def render_venue_card(venue: Venue, *, position: int = 1, total: int = 1) -> str
     else:
         lines.append("📍 Адрес не указан в OpenStreetMap")
 
+    if venue.district:
+        lines.append(f"🏙 {escape(venue.district)}")
+
     if venue.opening_hours:
         lines.append(f"🕐 {escape(venue.opening_hours)}")
 
     if venue.cuisine:
         cuisine = ", ".join(item.replace("_", " ") for item in venue.cuisine[:4])
         lines.append(f"🍴 {escape(cuisine)}")
+
+    if venue.phone:
+        lines.append(f"☎️ {escape(venue.phone)}")
 
     if venue.source == "osm":
         lines.extend(
