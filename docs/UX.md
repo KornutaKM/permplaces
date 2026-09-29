@@ -80,7 +80,9 @@ The card contains only sourced facts:
 - address when present;
 - raw OSM opening_hours when present;
 - cuisine tags when present;
-- provider/source attribution.
+- provider/source attribution;
+- phone when present in the provider;
+- district when known.
 
 OSM does not supply PermPlaces with a platform rating or review count, so those fields are omitted.
 
@@ -89,6 +91,7 @@ Actions:
 - Подробнее
 - Маршрут
 - Открыть в OSM
+- Сайт, only when the provider supplies a valid HTTP(S) URL
 - В избранное (planned persistence)
 - Следующее / Предыдущее
 
