@@ -52,6 +52,8 @@ _SCENARIO_CATEGORIES = {
     "breakfast": "breakfast",
     "drink": "bar",
     "work": "cafe",
+    "family": "food_drink",
+    "late": "food_drink",
     "random": "food_drink",
 }
 
@@ -61,6 +63,8 @@ def _filters_from_state(data: dict[str, object]) -> PlaceFilters:
         outdoor_seating=data.get("filter_outdoor_seating") is True,
         wifi=data.get("filter_wifi") is True,
         open_now=data.get("filter_open_now") is True,
+        family_friendly=data.get("filter_family_friendly") is True,
+        open_late=data.get("filter_open_late") is True,
     )
 
 
@@ -174,6 +178,8 @@ async def start(message: Message, state: FSMContext) -> None:
         filter_outdoor_seating=False,
         filter_wifi=False,
         filter_open_now=False,
+        filter_family_friendly=False,
+        filter_open_late=False,
     )
     await message.answer(WELCOME, reply_markup=home_keyboard())
 
@@ -359,8 +365,8 @@ async def nav_filters(callback: CallbackQuery, state: FSMContext) -> None:
     await callback.message.edit_text(
         "<b>Настройте фильтры</b>\n\n"
         f"{scope_note}\n"
-        "🌿 Веранда и 📶 Wi-Fi применяются по явным тегам OpenStreetMap.\n"
-        "🟢 «Открыто сейчас» вычисляется по OSM opening_hours с часовым поясом точки.",
+        "🌿 Веранда, 📶 Wi-Fi и 👨‍👩‍👧 «Для детей» — только по явным тегам OSM.\n"
+        "🟢 «Открыто сейчас» и 🌙 «Открыто в 23:00» вычисляются по OSM opening_hours.",
         reply_markup=filters_keyboard(
             radius_m=(
                 data.get("radius_m")
@@ -371,6 +377,8 @@ async def nav_filters(callback: CallbackQuery, state: FSMContext) -> None:
             outdoor_seating=data.get("filter_outdoor_seating") is True,
             wifi=data.get("filter_wifi") is True,
             open_now=data.get("filter_open_now") is True,
+            family_friendly=data.get("filter_family_friendly") is True,
+            open_late=data.get("filter_open_late") is True,
         ),
     )
 
@@ -602,6 +610,10 @@ async def scenario(
 
     if scenario_name == "work":
         await state.update_data(filter_wifi=True)
+    elif scenario_name == "family":
+        await state.update_data(filter_family_friendly=True)
+    elif scenario_name == "late":
+        await state.update_data(filter_open_late=True)
 
     candidate_limit = 20 if scenario_name == "random" else 5
 
@@ -638,7 +650,10 @@ async def scenario(
     else:
         index = 0
         venue = venues[0]
-        heading = ""
+        heading = {
+            "family": "👨‍👩‍👧 <b>Места с подтверждёнными удобствами для детей</b>\n\n",
+            "late": "🌙 <b>Открыто сегодня в 23:00 по графику OSM</b>\n\n",
+        }.get(scenario_name, "")
 
     await callback.message.edit_text(
         heading + render_venue_card(
@@ -696,12 +711,28 @@ async def filter_selected(callback: CallbackQuery, state: FSMContext) -> None:
             "Открыто сейчас: включено" if enabled else "Открыто сейчас: выключено"
         )
 
+    elif action == "late" and value == "toggle":
+        enabled = data.get("filter_open_late") is not True
+        await state.update_data(filter_open_late=enabled)
+        await callback.answer(
+            "Открыто в 23:00: включено" if enabled else "Открыто в 23:00: выключено"
+        )
+
+    elif action == "family" and value == "toggle":
+        enabled = data.get("filter_family_friendly") is not True
+        await state.update_data(filter_family_friendly=enabled)
+        await callback.answer(
+            "Для детей: включено" if enabled else "Для детей: выключено"
+        )
+
     elif action == "reset" and value == "all":
         await state.update_data(
             radius_m=3000,
             filter_outdoor_seating=False,
             filter_wifi=False,
             filter_open_now=False,
+            filter_family_friendly=False,
+            filter_open_late=False,
         )
         await callback.answer("Фильтры сброшены")
 
@@ -722,6 +753,8 @@ async def filter_selected(callback: CallbackQuery, state: FSMContext) -> None:
                 outdoor_seating=refreshed.get("filter_outdoor_seating") is True,
                 wifi=refreshed.get("filter_wifi") is True,
                 open_now=refreshed.get("filter_open_now") is True,
+                family_friendly=refreshed.get("filter_family_friendly") is True,
+                open_late=refreshed.get("filter_open_late") is True,
             )
         )
 
