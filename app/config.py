@@ -10,6 +10,8 @@ class Settings(BaseSettings):
     )
     overpass_timeout_seconds: float = Field(default=20.0, alias="OVERPASS_TIMEOUT_SECONDS")
     database_path: str = Field(default="data/permplaces.db", alias="DATABASE_PATH")
+    provider_cache_ttl_seconds: float = Field(default=120.0, alias="PROVIDER_CACHE_TTL_SECONDS")
+    provider_cache_max_entries: int = Field(default=256, alias="PROVIDER_CACHE_MAX_ENTRIES")
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
