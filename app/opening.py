@@ -11,7 +11,6 @@ from opening_hours import (
     UnknownCountryError,
 )
 
-
 PERM_TIMEZONE = ZoneInfo("Asia/Yekaterinburg")
 LATE_EVENING_HOUR = 23
 
