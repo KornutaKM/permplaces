@@ -13,6 +13,7 @@ class ParsedSearchQuery:
     radius_m: int | None = None
     district_key: str | None = None
     whole_city: bool = False
+    nearby: bool = False
 
 
 _CATEGORY_PATTERNS: tuple[tuple[str, tuple[str, ...]], ...] = (
@@ -41,6 +42,7 @@ _WIFI_NEGATIVE_PATTERNS = ("без wi-fi", "без wifi", "без вайф", "б
 _TERRACE_PATTERNS = ("веранд", "террас", "летней площадк", "летняя площадк")
 _TERRACE_NEGATIVE_PATTERNS = ("без веранд", "без террас", "без летней площад")
 _WHOLE_CITY_PATTERNS = ("вся пермь", "по всей перми", "во всей перми")
+_NEARBY_PATTERNS = ("рядом", "поблизости", "недалеко")
 
 _RADIUS_RE = re.compile(
     r"(?P<value>\d+(?:[.,]\d+)?)\s*(?P<unit>км|километр(?:а|ов)?|м|метр(?:а|ов)?)\b",
@@ -113,4 +115,5 @@ def parse_search_query(text: str) -> ParsedSearchQuery:
         radius_m=_parse_radius(normalized),
         district_key=district_key,
         whole_city=_contains_any(normalized, _WHOLE_CITY_PATTERNS),
+        nearby=_contains_any(normalized, _NEARBY_PATTERNS),
     )
