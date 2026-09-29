@@ -136,7 +136,11 @@ class CachedPlacesProvider:
 
         try:
             venues = await asyncio.shield(task)
-        except BaseException:
+        except asyncio.CancelledError:
+            # Cancelling one Telegram handler must not cancel or invalidate the
+            # shared upstream request awaited by other handlers.
+            raise
+        except Exception:
             async with self._lock:
                 if self._inflight.get(key) is task:
                     self._inflight.pop(key, None)
