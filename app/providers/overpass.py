@@ -6,6 +6,7 @@ from typing import Any
 import httpx
 
 from app.data import Venue
+from app.filters import PlaceFilters
 
 
 class ProviderError(RuntimeError):
@@ -42,34 +43,66 @@ def _category_filter(category: str) -> str:
     return tag_filter
 
 
+def _filter_suffixes(filters: PlaceFilters | None) -> tuple[str, ...]:
+    active = filters or PlaceFilters()
+    common = ""
+    if active.outdoor_seating:
+        common += '["outdoor_seating"]["outdoor_seating"!="no"]'
+
+    if active.wifi:
+        return (
+            common + '["internet_access"~"(^|;)wlan(;|$)",i]',
+            common + '["wifi"~"^(yes|free)$",i]',
+        )
+
+    return (common,)
+
+
 def build_overpass_query(
     *,
     category: str,
     latitude: float,
     longitude: float,
     radius_m: int,
+    filters: PlaceFilters | None = None,
 ) -> str:
     tag_filter = _category_filter(category)
+    selectors = "\n".join(
+        (
+            f'  nwr(around:{radius_m},{latitude:.6f},{longitude:.6f})'
+            f"{tag_filter}{suffix};"
+        )
+        for suffix in _filter_suffixes(filters)
+    )
     return (
         "[out:json][timeout:20];\n"
         "(\n"
-        f'  nwr(around:{radius_m},{latitude:.6f},{longitude:.6f}){tag_filter};\n'
+        f"{selectors}\n"
         ");\n"
         "out center tags;"
     )
 
 
-def build_area_query(*, category: str, relation_id: int) -> str:
+def build_area_query(
+    *,
+    category: str,
+    relation_id: int,
+    filters: PlaceFilters | None = None,
+) -> str:
     if relation_id <= 0:
         raise ValueError("relation_id must be positive")
 
     tag_filter = _category_filter(category)
+    selectors = "\n".join(
+        f"  nwr(area.searchArea){tag_filter}{suffix};"
+        for suffix in _filter_suffixes(filters)
+    )
     return (
         "[out:json][timeout:25];\n"
         f"rel({relation_id});\n"
         "map_to_area -> .searchArea;\n"
         "(\n"
-        f"  nwr(area.searchArea){tag_filter};\n"
+        f"{selectors}\n"
         ");\n"
         "out center tags;"
     )
@@ -107,6 +140,38 @@ def _split_tag(value: Any) -> tuple[str, ...]:
     return tuple(part.strip() for part in value.split(";") if part.strip())
 
 
+def _outdoor_seating(tags: Mapping[str, Any]) -> bool | None:
+    value = tags.get("outdoor_seating")
+    if not isinstance(value, str) or not value.strip():
+        return None
+    return value.strip().casefold() != "no"
+
+
+def _wifi(tags: Mapping[str, Any]) -> bool | None:
+    internet_access = tags.get("internet_access")
+    legacy_wifi = tags.get("wifi")
+
+    internet_value = (
+        internet_access.strip().casefold()
+        if isinstance(internet_access, str)
+        else None
+    )
+    wifi_value = legacy_wifi.strip().casefold() if isinstance(legacy_wifi, str) else None
+
+    internet_tokens = {
+        token.strip()
+        for token in (internet_value or "").split(";")
+        if token.strip()
+    }
+    if "wlan" in internet_tokens or wifi_value in {"yes", "free"}:
+        return True
+
+    if internet_value == "no" or wifi_value == "no":
+        return False
+
+    return None
+
+
 class OverpassProvider:
     def __init__(
         self,
@@ -119,7 +184,7 @@ class OverpassProvider:
         self._owns_client = client is None
         self._client = client or httpx.AsyncClient(
             timeout=httpx.Timeout(timeout_seconds),
-            headers={"User-Agent": "PermPlaces/0.4 (+https://github.com/KornutaKM/permplaces)"},
+            headers={"User-Agent": "PermPlaces/0.6 (+https://github.com/KornutaKM/permplaces)"},
         )
 
     async def close(self) -> None:
@@ -134,12 +199,14 @@ class OverpassProvider:
         longitude: float,
         radius_m: int,
         limit: int,
+        filters: PlaceFilters | None = None,
     ) -> list[Venue]:
         query = build_overpass_query(
             category=category,
             latitude=latitude,
             longitude=longitude,
             radius_m=radius_m,
+            filters=filters,
         )
         return await self._execute(query=query, category=category, limit=limit)
 
@@ -149,8 +216,13 @@ class OverpassProvider:
         category: str,
         relation_id: int,
         limit: int,
+        filters: PlaceFilters | None = None,
     ) -> list[Venue]:
-        query = build_area_query(category=category, relation_id=relation_id)
+        query = build_area_query(
+            category=category,
+            relation_id=relation_id,
+            filters=filters,
+        )
         return await self._execute(query=query, category=category, limit=limit)
 
     async def _execute(
@@ -240,4 +312,6 @@ class OverpassProvider:
                 else None
             ),
             cuisine=_split_tag(tags.get("cuisine")),
+            outdoor_seating=_outdoor_seating(tags),
+            wifi=_wifi(tags),
         )
