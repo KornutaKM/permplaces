@@ -17,12 +17,11 @@ PermPlaces should feel like a compact city concierge rather than a database brow
 ## Primary flow
 
 1. Start.
-2. Choose current geolocation.
-3. Choose category or a supported ready-made scenario.
-4. Optionally set radius.
-5. Browse nearest result cards.
-6. Open a venue.
-7. Send its map location or open its OSM source.
+2. Choose geolocation, a Perm district, or free-text search.
+3. Choose/parse category and supported provider-backed filters.
+4. Browse result cards.
+5. Open a venue.
+6. Send its map location, open its site/OSM source, or save it to favorites.
 
 ## Home
 
@@ -34,7 +33,7 @@ Primary actions:
 - ✨ Сценарии
 - ❤️ Избранное
 
-District search remains a planned flow until exact Perm district boundaries are connected.
+District search uses exact governed OSM administrative relations. Free-text search may select a district directly by name.
 
 ## Categories
 
@@ -93,7 +92,7 @@ Actions:
 - Маршрут
 - Открыть в OSM
 - Сайт, only when the provider supplies a valid HTTP(S) URL
-- В избранное (planned persistence)
+- В избранное
 - Следующее / Предыдущее
 
 ## Data-state rules
@@ -113,6 +112,19 @@ Current provider: OpenStreetMap through Overpass API.
 
 Each venue keeps provider identity and the exact OSM object ID. OSM-derived surfaces must expose attribution to OpenStreetMap contributors and the ODbL license.
 
+## Free-text search
+
+The parser is deterministic and result-blind. It currently understands:
+
+- supported venue categories and common Russian synonyms;
+- all seven Perm districts and “Вся Пермь”;
+- “рядом” / “поблизости” / “недалеко” as explicit geolocation intent;
+- radius from 100 m to 10 km;
+- Wi-Fi and terrace/outdoor-seating intent;
+- “без Wi-Fi” / “без веранды” as explicit filter disablement.
+
+Unsupported or ambiguous semantics remain explicit rather than being guessed.
+
 ## Next UX milestone
 
-Connect exact Perm district search and persistent favorites while preserving this navigation model.
+Improve result exploration and add new scenarios only where provider-backed evidence can support them.

@@ -10,6 +10,7 @@ from app.data import Venue
 from app.districts import DISTRICT_BY_KEY, PERM_DISTRICTS, PERM_RELATION_ID
 from app.filters import PlaceFilters
 from app.providers.overpass import ProviderError
+from app.query import parse_search_query, plan_search_query
 from app.search import SearchService
 from app.storage import FavoritesRepository
 from app.ui import (
@@ -43,18 +44,6 @@ WELCOME = """<b>Привет! 👋
 
 Как хотите искать заведение?"""
 
-
-_TEXT_CATEGORIES = {
-    "кофе": "cafe",
-    "кофейн": "cafe",
-    "ресторан": "restaurant",
-    "бар": "bar",
-    "пицц": "pizza",
-    "суш": "sushi",
-    "завтрак": "breakfast",
-    "фастфуд": "fastfood",
-    "десерт": "dessert",
-}
 
 _SCENARIO_CATEGORIES = {
     "coffee": "cafe",
@@ -212,8 +201,11 @@ async def choose_district(message: Message) -> None:
 async def ask_text_search(message: Message, state: FSMContext) -> None:
     await state.set_state(SearchState.awaiting_query)
     await message.answer(
-        "Напишите категорию: <i>кофе</i>, <i>ресторан</i>, <i>бар</i>, "
-        "<i>пицца</i>, <i>суши</i> или <i>завтрак</i>.",
+        "<b>Опишите, что ищете.</b>\n\n"
+        "Например:\n"
+        "• <i>кофе с Wi-Fi рядом 1 км</i>\n"
+        "• <i>ресторан с верандой в Ленинском районе</i>\n"
+        "• <i>суши по всей Перми</i>",
         reply_markup=ReplyKeyboardRemove(),
     )
 
@@ -225,15 +217,33 @@ async def text_search(
     search_service: SearchService,
 ) -> None:
     await state.set_state(None)
-    query = (message.text or "").casefold()
-    category = next(
-        (value for key, value in _TEXT_CATEGORIES.items() if key in query),
-        None,
-    )
-    if category is None:
+    parsed = parse_search_query(message.text or "")
+
+    if parsed.category is None:
         await message.answer(
-            "Пока свободный текст поддерживает категории заведений. Выберите категорию:",
+            "Не удалось определить категорию. Попробуйте, например: "
+            "«кофе с Wi-Fi рядом», «ресторан в Ленинском районе» "
+            "или выберите категорию кнопкой.",
             reply_markup=categories_keyboard(),
+        )
+        return
+
+    if parsed.invalid_radius:
+        await message.answer(
+            "Радиус в текстовом поиске должен быть от 100 м до 10 км. "
+            "Например: «кофе рядом 1,5 км»."
+        )
+        return
+
+    data = await state.get_data()
+    plan = plan_search_query(parsed, data)
+    await state.update_data(**plan.updates)
+
+    if plan.requires_location:
+        await message.answer(
+            "Для поиска «рядом» нужна геолокация. "
+            "Отправьте её через кнопку «📍 Рядом со мной».",
+            reply_markup=home_keyboard(),
         )
         return
 
@@ -241,7 +251,7 @@ async def text_search(
         venues = await _run_search(
             state=state,
             search_service=search_service,
-            category=category,
+            category=parsed.category,
         )
     except ProviderError:
         await message.answer(
@@ -251,16 +261,23 @@ async def text_search(
 
     if venues is None:
         await message.answer(
-            "Сначала выберите район Перми или отправьте геолокацию.",
+            "Укажите область поиска: выберите район Перми или отправьте геолокацию.",
             reply_markup=home_keyboard(),
         )
         return
+
     if not venues:
         await message.answer(
-            "В выбранной области ничего не найдено. Попробуйте другую категорию.",
+            "По заданным условиям ничего не найдено. "
+            "Попробуйте убрать Wi-Fi/веранду, увеличить радиус или выбрать другой район.",
             reply_markup=categories_keyboard(),
         )
         return
+
+    if plan.radius_ignored:
+        await message.answer(
+            "ℹ️ Радиус из текста не применяется при поиске внутри выбранного района."
+        )
 
     venue = venues[0]
     await message.answer(
