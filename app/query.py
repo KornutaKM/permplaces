@@ -37,7 +37,9 @@ _DISTRICT_PATTERNS: tuple[tuple[str, tuple[str, ...]], ...] = (
 )
 
 _WIFI_PATTERNS = ("wi-fi", "wifi", "вайфай", "вай-фай", "вай фай")
+_WIFI_NEGATIVE_PATTERNS = ("без wi-fi", "без wifi", "без вайф", "без вай-фай", "без вай фай")
 _TERRACE_PATTERNS = ("веранд", "террас", "летней площадк", "летняя площадк")
+_TERRACE_NEGATIVE_PATTERNS = ("без веранд", "без террас", "без летней площад")
 _WHOLE_CITY_PATTERNS = ("вся пермь", "по всей перми", "во всей перми")
 
 _RADIUS_RE = re.compile(
@@ -48,6 +50,15 @@ _RADIUS_RE = re.compile(
 
 def _contains_any(text: str, patterns: tuple[str, ...]) -> bool:
     return any(pattern in text for pattern in patterns)
+
+
+def _positive_feature(
+    text: str,
+    *,
+    positive: tuple[str, ...],
+    negative: tuple[str, ...],
+) -> bool:
+    return _contains_any(text, positive) and not _contains_any(text, negative)
 
 
 def _parse_radius(text: str) -> int | None:
@@ -88,8 +99,16 @@ def parse_search_query(text: str) -> ParsedSearchQuery:
     return ParsedSearchQuery(
         category=category,
         filters=PlaceFilters(
-            outdoor_seating=_contains_any(normalized, _TERRACE_PATTERNS),
-            wifi=_contains_any(normalized, _WIFI_PATTERNS),
+            outdoor_seating=_positive_feature(
+                normalized,
+                positive=_TERRACE_PATTERNS,
+                negative=_TERRACE_NEGATIVE_PATTERNS,
+            ),
+            wifi=_positive_feature(
+                normalized,
+                positive=_WIFI_PATTERNS,
+                negative=_WIFI_NEGATIVE_PATTERNS,
+            ),
         ),
         radius_m=_parse_radius(normalized),
         district_key=district_key,
