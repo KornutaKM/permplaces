@@ -1,3 +1,4 @@
+import asyncio
 import pytest
 
 from app.data import Venue
@@ -78,3 +79,29 @@ async def test_favorites_are_isolated_per_user(tmp_path) -> None:
 
     assert len(await repository.list_for_user(user_id=10)) == 1
     assert await repository.list_for_user(user_id=11) == []
+
+
+@pytest.mark.asyncio
+async def test_concurrent_double_toggle_is_serialized(tmp_path) -> None:
+    database_path = tmp_path / "permplaces.db"
+    venue = Venue(
+        id="osm:node/77",
+        name="Кофейня",
+        category="cafe",
+        category_label="Кофейня",
+        latitude=58.01,
+        longitude=56.25,
+        source="osm",
+        source_id="node/77",
+    )
+
+    repository = FavoritesRepository(str(database_path))
+    await repository.initialize()
+
+    results = await asyncio.gather(
+        repository.toggle(user_id=5, venue=venue),
+        repository.toggle(user_id=5, venue=venue),
+    )
+
+    assert sorted(results) == [False, True]
+    assert await repository.list_for_user(user_id=5) == []
