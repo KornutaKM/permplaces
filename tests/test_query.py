@@ -9,7 +9,8 @@ def test_parse_category_filters_radius_and_district() -> None:
 
     assert parsed == ParsedSearchQuery(
         category="cafe",
-        filters=PlaceFilters(outdoor_seating=True, wifi=True),
+        outdoor_seating=True,
+        wifi=True,
         radius_m=1500,
         district_key="leninsky",
         whole_city=False,
@@ -48,6 +49,8 @@ def test_unknown_text_stays_explicitly_unparsed() -> None:
 
     assert parsed.category is None
     assert parsed.filters == PlaceFilters()
+    assert parsed.outdoor_seating is None
+    assert parsed.wifi is None
     assert parsed.radius_m is None
     assert parsed.district_key is None
     assert parsed.whole_city is False
