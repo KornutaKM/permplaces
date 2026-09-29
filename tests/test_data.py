@@ -133,6 +133,8 @@ def test_filter_keyboard_marks_active_osm_filters() -> None:
         outdoor_seating=True,
         wifi=True,
         open_now=True,
+        family_friendly=True,
+        open_late=True,
     )
     labels = [
         button.text
@@ -144,6 +146,8 @@ def test_filter_keyboard_marks_active_osm_filters() -> None:
     assert "✅ 🌿 С верандой" in labels
     assert "✅ 📶 Wi-Fi" in labels
     assert "✅ 🟢 Открыто сейчас" in labels
+    assert "✅ 🌙 Открыто в 23:00" in labels
+    assert "✅ 👨‍👩‍👧 Для детей" in labels
 
 
 def test_district_filter_keyboard_blocks_radius() -> None:
@@ -151,3 +155,28 @@ def test_district_filter_keyboard_blocks_radius() -> None:
     first_button = keyboard.inline_keyboard[0][0]
 
     assert first_button.callback_data == "filter:radius:blocked"
+
+
+
+def test_card_shows_family_features_and_late_state() -> None:
+    venue = Venue(
+        id="osm:node/7",
+        name="Семейное место",
+        category="restaurant",
+        category_label="Ресторан",
+        latitude=58.01,
+        longitude=56.25,
+        source="osm",
+        source_id="node/7",
+        kids_area=True,
+        highchair=True,
+        changing_table=True,
+        is_open_late=True,
+    )
+
+    card = render_venue_card(venue)
+
+    assert "🌙 Открыто сегодня в 23:00" in card
+    assert "детская зона" in card
+    assert "детский стульчик" in card
+    assert "пеленальный столик" in card
