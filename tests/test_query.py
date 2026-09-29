@@ -13,6 +13,7 @@ def test_parse_category_filters_radius_and_district() -> None:
         radius_m=1500,
         district_key="leninsky",
         whole_city=False,
+        nearby=False,
     )
 
 
@@ -50,6 +51,7 @@ def test_unknown_text_stays_explicitly_unparsed() -> None:
     assert parsed.radius_m is None
     assert parsed.district_key is None
     assert parsed.whole_city is False
+    assert parsed.nearby is False
 
 
 
@@ -57,3 +59,12 @@ def test_negated_features_do_not_enable_filters() -> None:
     parsed = parse_search_query("кафе без Wi-Fi и без веранды")
 
     assert parsed.filters == PlaceFilters()
+
+
+
+def test_parse_nearby_intent() -> None:
+    parsed = parse_search_query("кофе с вайфаем рядом")
+
+    assert parsed.category == "cafe"
+    assert parsed.filters.wifi is True
+    assert parsed.nearby is True
