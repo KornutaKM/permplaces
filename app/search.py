@@ -1,5 +1,4 @@
 from dataclasses import replace
-from datetime import UTC, datetime
 from math import asin, cos, radians, sin, sqrt
 
 from app.data import Venue
@@ -35,14 +34,12 @@ def _filter_open_now(
     if filters is None or not filters.open_now:
         return venues
 
-    at = datetime.now(UTC)
     opened: list[Venue] = []
     for venue in venues:
         state = opening_state(
             venue.opening_hours,
             latitude=venue.latitude,
             longitude=venue.longitude,
-            at=at,
         )
         if state is OpeningState.OPEN:
             opened.append(replace(venue, is_open_now=True))
