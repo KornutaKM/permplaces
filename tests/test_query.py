@@ -11,6 +11,7 @@ def test_parse_category_filters_radius_and_district() -> None:
         category="cafe",
         outdoor_seating=True,
         wifi=True,
+        open_now=None,
         radius_m=1500,
         district_key="leninsky",
         whole_city=False,
@@ -57,6 +58,7 @@ def test_unknown_text_stays_explicitly_unparsed() -> None:
     assert parsed.filters == PlaceFilters()
     assert parsed.outdoor_seating is None
     assert parsed.wifi is None
+    assert parsed.open_now is None
     assert parsed.radius_m is None
     assert parsed.district_key is None
     assert parsed.whole_city is False
@@ -127,3 +129,27 @@ def test_plan_negated_feature_can_disable_existing_filter() -> None:
     plan = plan_search_query(parsed, {"filter_wifi": True})
 
     assert plan.updates["filter_wifi"] is False
+
+
+
+def test_parse_open_now_intent() -> None:
+    parsed = parse_search_query("суши открыто сейчас по всей Перми")
+
+    assert parsed.category == "sushi"
+    assert parsed.open_now is True
+    assert parsed.filters.open_now is True
+    assert parsed.whole_city is True
+
+
+def test_plan_open_now_can_enable_and_disable_state() -> None:
+    enable = plan_search_query(
+        parse_search_query("кафе открыто сейчас"),
+        {"filter_open_now": False},
+    )
+    disable = plan_search_query(
+        parse_search_query("кафе не обязательно открыто"),
+        {"filter_open_now": True},
+    )
+
+    assert enable.updates["filter_open_now"] is True
+    assert disable.updates["filter_open_now"] is False
