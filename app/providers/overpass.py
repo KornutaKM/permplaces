@@ -167,6 +167,9 @@ class OverpassProvider:
         except (httpx.HTTPError, ValueError) as exc:
             raise ProviderError("OpenStreetMap search is temporarily unavailable") from exc
 
+        if not isinstance(payload, Mapping):
+            raise ProviderError("OpenStreetMap returned an unexpected response")
+
         elements = payload.get("elements")
         if not isinstance(elements, list):
             raise ProviderError("OpenStreetMap returned an unexpected response")
