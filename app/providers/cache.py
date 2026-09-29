@@ -5,14 +5,13 @@ from collections import OrderedDict
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from time import monotonic
-from typing import TypeAlias
 
 from app.data import Venue
 from app.filters import PlaceFilters
 from app.providers.base import PlacesProvider
 
 
-CacheKey: TypeAlias = tuple[object, ...]
+type CacheKey = tuple[object, ...]
 
 
 @dataclass(frozen=True, slots=True)
