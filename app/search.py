@@ -2,6 +2,7 @@ from dataclasses import replace
 from math import asin, cos, radians, sin, sqrt
 
 from app.data import Venue
+from app.filters import PlaceFilters
 from app.providers.base import PlacesProvider
 
 
@@ -36,6 +37,7 @@ class SearchService:
         longitude: float,
         radius_m: int = 3000,
         limit: int = 5,
+        filters: PlaceFilters | None = None,
     ) -> list[Venue]:
         candidates = await self._provider.search_nearby(
             category=category,
@@ -43,6 +45,7 @@ class SearchService:
             longitude=longitude,
             radius_m=radius_m,
             limit=max(25, limit * 4),
+            filters=filters,
         )
 
         with_distance = [
@@ -74,11 +77,13 @@ class SearchService:
         relation_id: int,
         district_name: str,
         limit: int = 5,
+        filters: PlaceFilters | None = None,
     ) -> list[Venue]:
         candidates = await self._provider.search_in_area(
             category=category,
             relation_id=relation_id,
             limit=max(50, limit * 10),
+            filters=filters,
         )
         normalized = [
             replace(venue, district=district_name, distance_m=None)

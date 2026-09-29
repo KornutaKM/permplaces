@@ -1,6 +1,7 @@
 from typing import Protocol
 
 from app.data import Venue
+from app.filters import PlaceFilters
 
 
 class PlacesProvider(Protocol):
@@ -12,6 +13,7 @@ class PlacesProvider(Protocol):
         longitude: float,
         radius_m: int,
         limit: int,
+        filters: PlaceFilters | None = None,
     ) -> list[Venue]: ...
 
     async def search_in_area(
@@ -20,4 +22,5 @@ class PlacesProvider(Protocol):
         category: str,
         relation_id: int,
         limit: int,
+        filters: PlaceFilters | None = None,
     ) -> list[Venue]: ...

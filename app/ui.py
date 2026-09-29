@@ -66,24 +66,46 @@ def districts_keyboard() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(inline_keyboard=rows)
 
 
-def filters_keyboard() -> InlineKeyboardMarkup:
+def filters_keyboard(
+    *,
+    radius_m: int = 3000,
+    location_scope: bool = True,
+    outdoor_seating: bool = False,
+    wifi: bool = False,
+) -> InlineKeyboardMarkup:
+    if location_scope:
+        radius_buttons = []
+        for value, label in ((500, "500 м"), (1000, "1 км"), (3000, "3 км"), (5000, "5 км")):
+            prefix = "✅ " if radius_m == value else ""
+            radius_buttons.append(
+                InlineKeyboardButton(
+                    text=f"{prefix}{label}",
+                    callback_data=f"filter:radius:{value}",
+                )
+            )
+        radius_row = radius_buttons
+    else:
+        radius_row = [
+            InlineKeyboardButton(
+                text="📍 Радиус — только «Рядом со мной»",
+                callback_data="filter:radius:blocked",
+            )
+        ]
+
     return InlineKeyboardMarkup(
         inline_keyboard=[
+            radius_row,
             [
-                InlineKeyboardButton(text="500 м", callback_data="filter:radius:500"),
-                InlineKeyboardButton(text="1 км", callback_data="filter:radius:1000"),
-                InlineKeyboardButton(text="3 км", callback_data="filter:radius:3000"),
-                InlineKeyboardButton(text="5 км", callback_data="filter:radius:5000"),
+                InlineKeyboardButton(
+                    text=("✅ " if outdoor_seating else "") + "🌿 С верандой",
+                    callback_data="filter:terrace:toggle",
+                ),
+                InlineKeyboardButton(
+                    text=("✅ " if wifi else "") + "📶 Wi-Fi",
+                    callback_data="filter:wifi:toggle",
+                ),
             ],
-            [
-                InlineKeyboardButton(text="₽", callback_data="filter:price:1"),
-                InlineKeyboardButton(text="₽₽", callback_data="filter:price:2"),
-                InlineKeyboardButton(text="₽₽₽", callback_data="filter:price:3"),
-            ],
-            [
-                InlineKeyboardButton(text="Открыто сейчас", callback_data="filter:open:1"),
-                InlineKeyboardButton(text="С верандой", callback_data="filter:terrace:1"),
-            ],
+            [InlineKeyboardButton(text="🧹 Сбросить фильтры", callback_data="filter:reset:all")],
             [InlineKeyboardButton(text="← К категориям", callback_data="nav:categories")],
         ]
     )
@@ -208,6 +230,12 @@ def render_venue_card(venue: Venue, *, position: int = 1, total: int = 1) -> str
     if venue.cuisine:
         cuisine = ", ".join(item.replace("_", " ") for item in venue.cuisine[:4])
         lines.append(f"🍴 {escape(cuisine)}")
+
+    if venue.outdoor_seating:
+        lines.append("🌿 Есть места на улице / терраса")
+
+    if venue.wifi:
+        lines.append("📶 Есть Wi-Fi")
 
     if venue.phone:
         lines.append(f"☎️ {escape(venue.phone)}")

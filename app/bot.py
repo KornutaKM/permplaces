@@ -8,6 +8,7 @@ from aiogram.types import CallbackQuery, Message, ReplyKeyboardRemove
 
 from app.data import Venue
 from app.districts import DISTRICT_BY_KEY, PERM_DISTRICTS, PERM_RELATION_ID
+from app.filters import PlaceFilters
 from app.providers.overpass import ProviderError
 from app.search import SearchService
 from app.storage import FavoritesRepository
@@ -60,8 +61,16 @@ _SCENARIO_CATEGORIES = {
     "eat": "restaurant",
     "breakfast": "breakfast",
     "drink": "bar",
+    "work": "cafe",
     "random": "restaurant",
 }
+
+
+def _filters_from_state(data: dict[str, object]) -> PlaceFilters:
+    return PlaceFilters(
+        outdoor_seating=data.get("filter_outdoor_seating") is True,
+        wifi=data.get("filter_wifi") is True,
+    )
 
 
 def _venue_from_dict(value: dict[str, object]) -> Venue:
@@ -86,6 +95,7 @@ async def _run_search(
 ) -> list[Venue] | None:
     data = await state.get_data()
     scope = data.get("search_scope")
+    filters = _filters_from_state(data)
 
     if scope == "district":
         relation_id = data.get("district_relation_id")
@@ -98,6 +108,7 @@ async def _run_search(
             relation_id=relation_id,
             district_name=district_name,
             limit=5,
+            filters=filters,
         )
     elif scope == "location":
         latitude = data.get("latitude")
@@ -117,6 +128,7 @@ async def _run_search(
             longitude=float(longitude),
             radius_m=radius_m,
             limit=5,
+            filters=filters,
         )
     else:
         return None
@@ -165,7 +177,11 @@ async def _edit_current_result(callback: CallbackQuery, state: FSMContext) -> No
 @router.message(CommandStart())
 async def start(message: Message, state: FSMContext) -> None:
     await state.clear()
-    await state.update_data(radius_m=3000)
+    await state.update_data(
+        radius_m=3000,
+        filter_outdoor_seating=False,
+        filter_wifi=False,
+    )
     await message.answer(WELCOME, reply_markup=home_keyboard())
 
 
@@ -320,9 +336,18 @@ async def nav_filters(callback: CallbackQuery, state: FSMContext) -> None:
     )
     await callback.message.edit_text(
         "<b>Настройте фильтры</b>\n\n"
-        f"{scope_note} Остальные фильтры будут включаться только "
-        "когда источник данных позволяет применить их без догадок.",
-        reply_markup=filters_keyboard(),
+        f"{scope_note}\n"
+        "🌿 Веранда и 📶 Wi-Fi применяются только по явным тегам OpenStreetMap.",
+        reply_markup=filters_keyboard(
+            radius_m=(
+                data.get("radius_m")
+                if isinstance(data.get("radius_m"), int)
+                else 3000
+            ),
+            location_scope=scope != "district",
+            outdoor_seating=data.get("filter_outdoor_seating") is True,
+            wifi=data.get("filter_wifi") is True,
+        ),
     )
 
 
@@ -551,6 +576,9 @@ async def scenario(
         )
         return
 
+    if scenario_name == "work":
+        await state.update_data(filter_wifi=True)
+
     try:
         venues = await _run_search(
             state=state,
@@ -594,20 +622,60 @@ async def filter_selected(callback: CallbackQuery, state: FSMContext) -> None:
         return
 
     parts = callback.data.split(":")
-    if len(parts) == 3 and parts[1] == "radius":
-        data = await state.get_data()
-        if data.get("search_scope") == "district":
+    if len(parts) != 3:
+        await callback.answer("Неизвестный фильтр.")
+        return
+
+    data = await state.get_data()
+    scope = data.get("search_scope")
+    action = parts[1]
+    value = parts[2]
+
+    if action == "radius":
+        if scope == "district" or value == "blocked":
             await callback.answer("Радиус используется только в режиме «Рядом со мной».")
             return
 
-        radius_m = int(parts[2])
+        radius_m = int(value)
         await state.update_data(radius_m=radius_m)
         await callback.answer(f"Радиус: {radius_m / 1000:g} км")
+
+    elif action == "terrace" and value == "toggle":
+        enabled = data.get("filter_outdoor_seating") is not True
+        await state.update_data(filter_outdoor_seating=enabled)
+        await callback.answer("Веранда: включено" if enabled else "Веранда: выключено")
+
+    elif action == "wifi" and value == "toggle":
+        enabled = data.get("filter_wifi") is not True
+        await state.update_data(filter_wifi=enabled)
+        await callback.answer("Wi-Fi: включено" if enabled else "Wi-Fi: выключено")
+
+    elif action == "reset" and value == "all":
+        await state.update_data(
+            radius_m=3000,
+            filter_outdoor_seating=False,
+            filter_wifi=False,
+        )
+        await callback.answer("Фильтры сброшены")
+
+    else:
+        await callback.answer("Этот фильтр не поддерживается.")
         return
 
-    await callback.answer(
-        "Этот фильтр пока нельзя применить надёжно к текущему источнику данных."
-    )
+    if callback.message:
+        refreshed = await state.get_data()
+        await callback.message.edit_reply_markup(
+            reply_markup=filters_keyboard(
+                radius_m=(
+                    refreshed.get("radius_m")
+                    if isinstance(refreshed.get("radius_m"), int)
+                    else 3000
+                ),
+                location_scope=refreshed.get("search_scope") != "district",
+                outdoor_seating=refreshed.get("filter_outdoor_seating") is True,
+                wifi=refreshed.get("filter_wifi") is True,
+            )
+        )
 
 
 @router.callback_query(F.data.startswith("results:"))
