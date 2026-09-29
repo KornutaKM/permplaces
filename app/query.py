@@ -20,6 +20,8 @@ class ParsedSearchQuery:
     outdoor_seating: bool | None = None
     wifi: bool | None = None
     open_now: bool | None = None
+    family_friendly: bool | None = None
+    open_late: bool | None = None
     radius_m: int | None = None
     district_key: str | None = None
     whole_city: bool = False
@@ -32,6 +34,8 @@ class ParsedSearchQuery:
             outdoor_seating=self.outdoor_seating is True,
             wifi=self.wifi is True,
             open_now=self.open_now is True,
+            family_friendly=self.family_friendly is True,
+            open_late=self.open_late is True,
         )
 
 
@@ -72,6 +76,21 @@ _OPEN_NOW_NEGATIVE_PATTERNS = (
     "не обязательно открыто",
     "неважно открыто",
 )
+_FAMILY_PATTERNS = (
+    "с детьми",
+    "для детей",
+    "детская зона",
+    "детский уголок",
+    "детский стульчик",
+)
+_FAMILY_NEGATIVE_PATTERNS = ("без детей", "не для детей")
+_LATE_PATTERNS = (
+    "поздно вечером",
+    "до позднего вечера",
+    "открыто в 23",
+    "открыты в 23",
+)
+_LATE_NEGATIVE_PATTERNS = ("не обязательно поздно",)
 _WHOLE_CITY_PATTERNS = ("вся пермь", "по всей перми", "во всей перми")
 _NEARBY_PATTERNS = ("рядом", "поблизости", "недалеко")
 
@@ -151,6 +170,16 @@ def parse_search_query(text: str) -> ParsedSearchQuery:
             positive=_OPEN_NOW_PATTERNS,
             negative=_OPEN_NOW_NEGATIVE_PATTERNS,
         ),
+        family_friendly=_feature_intent(
+            normalized,
+            positive=_FAMILY_PATTERNS,
+            negative=_FAMILY_NEGATIVE_PATTERNS,
+        ),
+        open_late=_feature_intent(
+            normalized,
+            positive=_LATE_PATTERNS,
+            negative=_LATE_NEGATIVE_PATTERNS,
+        ),
         radius_m=radius_m,
         district_key=district_key,
         whole_city=_contains_any(normalized, _WHOLE_CITY_PATTERNS),
@@ -171,6 +200,10 @@ def plan_search_query(
         updates["filter_wifi"] = parsed.wifi
     if parsed.open_now is not None:
         updates["filter_open_now"] = parsed.open_now
+    if parsed.family_friendly is not None:
+        updates["filter_family_friendly"] = parsed.family_friendly
+    if parsed.open_late is not None:
+        updates["filter_open_late"] = parsed.open_late
 
     if parsed.district_key is not None:
         district = DISTRICT_BY_KEY[parsed.district_key]
