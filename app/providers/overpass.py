@@ -48,6 +48,8 @@ def _filter_suffixes(filters: PlaceFilters | None) -> tuple[str, ...]:
     common = ""
     if active.outdoor_seating:
         common += '["outdoor_seating"]["outdoor_seating"!="no"]'
+    if active.open_now:
+        common += '["opening_hours"]'
 
     if active.wifi:
         return (
@@ -184,7 +186,7 @@ class OverpassProvider:
         self._owns_client = client is None
         self._client = client or httpx.AsyncClient(
             timeout=httpx.Timeout(timeout_seconds),
-            headers={"User-Agent": "PermPlaces/0.6 (+https://github.com/KornutaKM/permplaces)"},
+            headers={"User-Agent": "PermPlaces/0.8 (+https://github.com/KornutaKM/permplaces)"},
         )
 
     async def close(self) -> None:
