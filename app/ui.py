@@ -72,6 +72,7 @@ def filters_keyboard(
     location_scope: bool = True,
     outdoor_seating: bool = False,
     wifi: bool = False,
+    open_now: bool = False,
 ) -> InlineKeyboardMarkup:
     if location_scope:
         radius_buttons = []
@@ -104,6 +105,12 @@ def filters_keyboard(
                     text=("✅ " if wifi else "") + "📶 Wi-Fi",
                     callback_data="filter:wifi:toggle",
                 ),
+            ],
+            [
+                InlineKeyboardButton(
+                    text=("✅ " if open_now else "") + "🟢 Открыто сейчас",
+                    callback_data="filter:open:toggle",
+                )
             ],
             [InlineKeyboardButton(text="🧹 Сбросить фильтры", callback_data="filter:reset:all")],
             [InlineKeyboardButton(text="← К категориям", callback_data="nav:categories")],
@@ -223,6 +230,9 @@ def render_venue_card(venue: Venue, *, position: int = 1, total: int = 1) -> str
 
     if venue.district:
         lines.append(f"🏙 {escape(venue.district)}")
+
+    if venue.is_open_now:
+        lines.append("🟢 Открыто сейчас")
 
     if venue.opening_hours:
         lines.append(f"🕐 {escape(venue.opening_hours)}")
