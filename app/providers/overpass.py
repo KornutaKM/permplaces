@@ -9,7 +9,6 @@ from app.data import Venue
 from app.filters import PlaceFilters
 from app.providers.base import ProviderError
 
-
 _CATEGORY_FILTERS = {
     "restaurant": '["amenity"="restaurant"]',
     "cafe": '["amenity"="cafe"]',
