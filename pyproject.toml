@@ -1,0 +1,23 @@
+[project]
+name = "permplaces"
+version = "0.1.0"
+description = "Telegram city places assistant for Perm"
+requires-python = ">=3.12"
+dependencies = [
+  "aiogram>=3.22,<4",
+  "pydantic-settings>=2.10,<3",
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=8.4,<9",
+  "ruff>=0.13,<1",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]
