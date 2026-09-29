@@ -18,21 +18,9 @@ logger = logging.getLogger(__name__)
 
 _API_VERSION = "2025-06-17"
 _PERM_TIMEZONE = ZoneInfo("Asia/Yekaterinburg")
-_FIELDS = ",".join(
-    (
-        "fsq_place_id",
-        "name",
-        "latitude",
-        "longitude",
-        "location",
-        "tel",
-        "website",
-        "rating",
-        "price",
-        "stats",
-        "attributes",
-        "hours",
-    )
+_FIELDS = (
+    "fsq_place_id,name,latitude,longitude,location,tel,website,"
+    "rating,price,stats,attributes,hours"
 )
 
 _CATEGORY_QUERIES = {
