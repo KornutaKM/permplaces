@@ -62,3 +62,11 @@ Official API references:
 - https://docs.foursquare.com/fsq-developers-places/reference/place-search
 - https://docs.foursquare.com/fsq-developers-places/reference/place-details
 - https://docs.foursquare.com/fsq-developers-places/reference/authentication
+
+
+## Visual attribution
+
+Any Telegram card that contains Foursquare Places Data must display the branded credit
+`Powered by Foursquare`. Provider provenance is therefore also a display-compliance signal:
+if Foursquare contributes any merged field, the card keeps a Foursquare source reference and
+renders the credit.
