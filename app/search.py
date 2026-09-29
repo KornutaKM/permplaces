@@ -3,7 +3,7 @@ from math import asin, cos, radians, sin, sqrt
 
 from app.data import Venue
 from app.filters import PlaceFilters
-from app.opening import OpeningState, opening_state
+from app.opening import OpeningState, late_evening_reference, opening_state
 from app.providers.base import PlacesProvider
 
 
@@ -26,23 +26,43 @@ def distance_m(
     return round(2 * earth_radius_m * asin(sqrt(haversine)))
 
 
-def _filter_open_now(
+def _filter_opening(
     venues: list[Venue],
     *,
     filters: PlaceFilters | None,
 ) -> list[Venue]:
-    if filters is None or not filters.open_now:
+    if filters is None or (not filters.open_now and not filters.open_late):
         return venues
 
+    late_at = late_evening_reference() if filters.open_late else None
     opened: list[Venue] = []
+
     for venue in venues:
-        state = opening_state(
-            venue.opening_hours,
-            latitude=venue.latitude,
-            longitude=venue.longitude,
-        )
-        if state is OpeningState.OPEN:
-            opened.append(replace(venue, is_open_now=True))
+        current = venue
+
+        if filters.open_now:
+            state = opening_state(
+                venue.opening_hours,
+                latitude=venue.latitude,
+                longitude=venue.longitude,
+            )
+            if state is not OpeningState.OPEN:
+                continue
+            current = replace(current, is_open_now=True)
+
+        if filters.open_late:
+            state = opening_state(
+                venue.opening_hours,
+                latitude=venue.latitude,
+                longitude=venue.longitude,
+                at=late_at,
+            )
+            if state is not OpeningState.OPEN:
+                continue
+            current = replace(current, is_open_late=True)
+
+        opened.append(current)
+
     return opened
 
 
@@ -62,7 +82,7 @@ class SearchService:
     ) -> list[Venue]:
         provider_limit = (
             max(80, limit * 16)
-            if filters is not None and filters.open_now
+            if filters is not None and (filters.open_now or filters.open_late)
             else max(25, limit * 4)
         )
         candidates = await self._provider.search_nearby(
@@ -73,7 +93,7 @@ class SearchService:
             limit=provider_limit,
             filters=filters,
         )
-        candidates = _filter_open_now(candidates, filters=filters)
+        candidates = _filter_opening(candidates, filters=filters)
 
         with_distance = [
             replace(
