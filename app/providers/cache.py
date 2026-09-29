@@ -1,15 +1,14 @@
 from __future__ import annotations
 
 import asyncio
-from collections.abc import Awaitable, Callable
 from collections import OrderedDict
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from time import monotonic
 
 from app.data import Venue
 from app.filters import PlaceFilters
 from app.providers.base import PlacesProvider
-
 
 type CacheKey = tuple[object, ...]
 
