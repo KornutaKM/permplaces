@@ -339,7 +339,11 @@ async def nav_filters(callback: CallbackQuery, state: FSMContext) -> None:
         f"{scope_note}\n"
         "🌿 Веранда и 📶 Wi-Fi применяются только по явным тегам OpenStreetMap.",
         reply_markup=filters_keyboard(
-            radius_m=data.get("radius_m") if isinstance(data.get("radius_m"), int) else 3000,
+            radius_m=(
+                data.get("radius_m")
+                if isinstance(data.get("radius_m"), int)
+                else 3000
+            ),
             location_scope=scope != "district",
             outdoor_seating=data.get("filter_outdoor_seating") is True,
             wifi=data.get("filter_wifi") is True,
