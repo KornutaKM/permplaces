@@ -22,6 +22,7 @@ async def test_foursquare_request_and_parse_rich_fields() -> None:
         assert params["sort"] == "DISTANCE"
         assert "rating" in params["fields"]
         assert "stats" in params["fields"]
+        assert "menu" in params["fields"]
         return httpx.Response(
             200,
             json={
@@ -36,6 +37,7 @@ async def test_foursquare_request_and_parse_rich_fields() -> None:
                         },
                         "tel": "+7 342 200-00-00",
                         "website": "https://example.test",
+                        "menu": "https://menu.example.test/fsq-1",
                         "rating": 8.7,
                         "price": 2,
                         "stats": {"total_ratings": 321},
@@ -76,6 +78,7 @@ async def test_foursquare_request_and_parse_rich_fields() -> None:
     assert venue.rating == 8.7
     assert venue.rating_scale == 10.0
     assert venue.review_count == 321
+    assert venue.menu_url == "https://menu.example.test/fsq-1"
     assert venue.price_label == "₽₽"
     assert venue.outdoor_seating is True
     assert venue.wifi is True
@@ -280,3 +283,40 @@ async def test_foursquare_malformed_response_is_provider_error() -> None:
 def test_foursquare_requires_explicit_api_key() -> None:
     with pytest.raises(ValueError, match="must not be empty"):
         FoursquareProvider(api_key="   ")
+
+
+@pytest.mark.asyncio
+async def test_foursquare_rejects_unsafe_menu_url() -> None:
+    async def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            200,
+            json={
+                "results": [
+                    {
+                        "fsq_place_id": "unsafe-menu",
+                        "name": "Unsafe menu",
+                        "latitude": 58.01,
+                        "longitude": 56.25,
+                        "menu": "javascript:alert(1)",
+                    }
+                ]
+            },
+        )
+
+    client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
+    provider = FoursquareProvider(
+        api_key="key",
+        endpoint="https://example.test",
+        client=client,
+    )
+
+    venues = await provider.search_nearby(
+        category="cafe",
+        latitude=58.01,
+        longitude=56.25,
+        radius_m=1000,
+        limit=5,
+    )
+    await client.aclose()
+
+    assert venues[0].menu_url is None

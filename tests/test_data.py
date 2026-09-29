@@ -342,3 +342,63 @@ def test_foursquare_rating_card_keeps_ten_point_scale_and_attribution() -> None:
 
     assert "⭐ 8.7/10 (321)" in card
     assert "Powered by Foursquare" in card
+
+
+def test_venue_keyboard_shows_only_safe_provider_menu_url() -> None:
+    safe = Venue(
+        id="foursquare:menu-safe",
+        name="Menu safe",
+        category="restaurant",
+        category_label="Ресторан",
+        latitude=58.01,
+        longitude=56.25,
+        source="foursquare",
+        source_id="menu-safe",
+        menu_url="https://menu.example.test/place",
+    )
+    unsafe = Venue(
+        id="foursquare:menu-unsafe",
+        name="Menu unsafe",
+        category="restaurant",
+        category_label="Ресторан",
+        latitude=58.01,
+        longitude=56.25,
+        source="foursquare",
+        source_id="menu-unsafe",
+        menu_url="javascript:alert(1)",
+    )
+    missing = Venue(
+        id="osm:node/menu-missing",
+        name="Menu missing",
+        category="restaurant",
+        category_label="Ресторан",
+        latitude=58.01,
+        longitude=56.25,
+        source="osm",
+        source_id="node/menu-missing",
+    )
+
+    safe_menu = [
+        button
+        for row in venue_keyboard(safe).inline_keyboard
+        for button in row
+        if button.text == "📖 Меню"
+    ]
+    unsafe_menu = [
+        button
+        for row in venue_keyboard(unsafe).inline_keyboard
+        for button in row
+        if button.text == "📖 Меню"
+    ]
+    missing_menu = [
+        button
+        for row in venue_keyboard(missing).inline_keyboard
+        for button in row
+        if button.text == "📖 Меню"
+    ]
+
+    assert len(safe_menu) == 1
+    assert safe_menu[0].url == "https://menu.example.test/place"
+    assert safe_menu[0].callback_data is None
+    assert unsafe_menu == []
+    assert missing_menu == []
