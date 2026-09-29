@@ -195,8 +195,10 @@ def render_venue_card(venue: Venue, *, position: int = 1, total: int = 1) -> str
         lines.extend(
             [
                 "",
-                '<i>Данные: <a href="https://www.openstreetmap.org/copyright">'
-                "© OpenStreetMap contributors</a> · ODbL</i>",
+                (
+                    '<i>Данные: <a href="https://www.openstreetmap.org/copyright">'
+                    "© OpenStreetMap contributors</a> · ODbL</i>"
+                ),
             ]
         )
 
