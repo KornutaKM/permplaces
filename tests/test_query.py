@@ -50,3 +50,10 @@ def test_unknown_text_stays_explicitly_unparsed() -> None:
     assert parsed.radius_m is None
     assert parsed.district_key is None
     assert parsed.whole_city is False
+
+
+
+def test_negated_features_do_not_enable_filters() -> None:
+    parsed = parse_search_query("кафе без Wi-Fi и без веранды")
+
+    assert parsed.filters == PlaceFilters()
