@@ -1,8 +1,8 @@
 from __future__ import annotations
 
 import asyncio
-from collections import OrderedDict
 from collections.abc import Awaitable, Callable
+from collections import OrderedDict
 from dataclasses import dataclass
 from time import monotonic
 
