@@ -74,7 +74,7 @@ class CompositePlacesProvider:
         successful: list[list[Venue]] = []
         failures = 0
         for index, result in enumerate(results):
-            if isinstance(result, Exception):
+            if isinstance(result, ProviderError):
                 failures += 1
                 logger.warning(
                     "places_composite event=provider_failed provider_index=%d providers_total=%d",
@@ -82,6 +82,8 @@ class CompositePlacesProvider:
                     len(self._providers),
                 )
                 continue
+            if isinstance(result, BaseException):
+                raise result
             successful.append(result)
 
         if not successful:
