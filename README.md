@@ -4,7 +4,7 @@ Telegram-ассистент для поиска кафе, ресторанов, 
 
 ## Статус
 
-Версия 0.16 добавляет opt-in 2GIS Places provider для nearby-поиска поверх multi-provider provenance/dedup слоя.
+Версия 0.17 добавляет внутренние liveness/readiness endpoints и Docker healthcheck для предсказуемого локального и будущего production runtime.
 
 Рабочие вертикальные сценарии:
 
@@ -51,7 +51,9 @@ Telegram-ассистент для поиска кафе, ресторанов, 
 - multi-provider aggregation foundation с conservative dedup;
 - source-level и field-level provenance для объединённых карточек;
 - опциональный 2GIS Places provider для nearby-поиска при заданном `TWOGIS_API_KEY`;
-- provider-aware source attribution в карточке.
+- provider-aware source attribution в карточке;
+- `/health/live` и `/health/ready` внутри контейнера;
+- Docker HEALTHCHECK, который показывает `healthy` только после runtime + SQLite initialization.
 
 ## Принцип данных
 
@@ -145,6 +147,9 @@ PROVIDER_CACHE_MAX_ENTRIES=256
 TWOGIS_API_KEY=
 TWOGIS_URL=https://catalog.api.2gis.com/3.0/items
 TWOGIS_TIMEOUT_SECONDS=10
+
+HEALTH_HOST=0.0.0.0
+HEALTH_PORT=8080
 ```
 
 Запуск:
@@ -186,7 +191,7 @@ Provider abstraction теперь включает deterministic aggregation и 
 1. Исследовать отдельный источник, который легально отдаёт rating/review values; 2GIS Places API 3.0 стандартно отдаёт только наличие rating/reviews, не значения/тексты.
 2. Добавить average-check enrichment только после region-specific attribute discovery и provenance.
 3. Сценарий «На свидание» после появления достаточно надёжных признаков.
-4. Production deployment profile после стабилизации локального runtime.
+4. Production deployment profile: non-root image, resource limits и deployment runbook.
 
 
 ## Overpass failover
@@ -273,3 +278,18 @@ Official documentation:
 - https://docs.2gis.com/en/api/search/places/overview
 - https://docs.2gis.com/en/api/search/places/reference/3.0/items
 - https://docs.2gis.com/en/api/search/places/examples/filtering
+
+
+## Health and readiness
+
+PermPlaces starts an internal HTTP health server inside the container.
+
+- `GET /health/live` returns 200 while the health server/event loop is alive.
+- `GET /health/ready` returns 503 during initialization.
+- After SQLite initialization succeeds, readiness becomes 200.
+- Before graceful shutdown, readiness switches back to 503.
+
+The Docker image uses `/health/ready` for its built-in `HEALTHCHECK`.
+
+Compose does not publish this port to the host. It is an internal runtime signal rather than a
+public HTTP API. `docker compose ps` shows the resulting container health state.
