@@ -34,4 +34,5 @@ jobs:
             echo "read-only root filesystem check unexpectedly succeeded"
             exit 1
           fi
+      - run: docker compose run --rm --no-deps bot python -m app.backup --help
       - run: docker compose run --rm --no-deps bot python -c "import app.main; print('compose-smoke-ok')"
