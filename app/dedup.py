@@ -179,6 +179,7 @@ def merge_venues(primary: Venue, secondary: Venue) -> Venue:
         updates["rating"] = secondary.rating
         updates["review_count"] = secondary.review_count
         chosen_sources["rating"] = _field_source(secondary, "rating")
+        chosen_sources.pop("review_count", None)
         if secondary.review_count is not None:
             chosen_sources["review_count"] = _field_source(
                 secondary,
