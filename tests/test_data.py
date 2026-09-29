@@ -313,5 +313,8 @@ def test_share_url_rejects_unsafe_source_url_and_falls_back_to_map() -> None:
 
     params = parse_qs(urlsplit(share_venue_url(venue)).query)
 
-    assert params["url"] == ["https://2gis.ru/geo/56.250000,58.010000"]
+    assert params["url"] == [
+        "https://www.openstreetmap.org/?mlat=58.010000&mlon=56.250000"
+        "#map=18/58.010000/56.250000"
+    ]
     assert "javascript:" not in share_venue_url(venue)
