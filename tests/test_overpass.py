@@ -13,6 +13,18 @@ def test_build_area_query_uses_relation_boundary() -> None:
     assert 'nwr(area.searchArea)["amenity"="restaurant"]' in query
 
 
+def test_build_query_adds_opening_hours_presence_for_open_now() -> None:
+    query = build_overpass_query(
+        category="cafe",
+        latitude=58.01046,
+        longitude=56.25017,
+        radius_m=1500,
+        filters=PlaceFilters(open_now=True),
+    )
+
+    assert '["opening_hours"]' in query
+
+
 def test_build_query_adds_osm_native_filters() -> None:
     query = build_overpass_query(
         category="cafe",
