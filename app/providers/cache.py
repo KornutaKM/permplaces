@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 from collections import OrderedDict
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
@@ -12,11 +13,23 @@ from app.providers.base import PlacesProvider
 
 type CacheKey = tuple[object, ...]
 
+logger = logging.getLogger(__name__)
+
 
 @dataclass(frozen=True, slots=True)
 class _CacheEntry:
     expires_at: float
     venues: tuple[Venue, ...]
+
+
+@dataclass(frozen=True, slots=True)
+class CacheStats:
+    hits: int
+    misses: int
+    coalesced: int
+    evictions: int
+    entries: int
+    inflight: int
 
 
 class CachedPlacesProvider:
@@ -46,6 +59,20 @@ class CachedPlacesProvider:
         self._entries: OrderedDict[CacheKey, _CacheEntry] = OrderedDict()
         self._inflight: dict[CacheKey, asyncio.Task[list[Venue]]] = {}
         self._lock = asyncio.Lock()
+        self._hits = 0
+        self._misses = 0
+        self._coalesced = 0
+        self._evictions = 0
+
+    def stats(self) -> CacheStats:
+        return CacheStats(
+            hits=self._hits,
+            misses=self._misses,
+            coalesced=self._coalesced,
+            evictions=self._evictions,
+            entries=len(self._entries),
+            inflight=len(self._inflight),
+        )
 
     @staticmethod
     def _filters_key(filters: PlaceFilters | None) -> PlaceFilters:
@@ -122,6 +149,12 @@ class CachedPlacesProvider:
             cached = self._entries.get(key)
             if cached is not None and cached.expires_at > now:
                 self._entries.move_to_end(key)
+                self._hits += 1
+                logger.info(
+                    "provider_cache event=hit entries=%d inflight=%d",
+                    len(self._entries),
+                    len(self._inflight),
+                )
                 return list(cached.venues)
 
             if cached is not None:
@@ -129,8 +162,21 @@ class CachedPlacesProvider:
 
             task = self._inflight.get(key)
             if task is None:
+                self._misses += 1
                 task = asyncio.create_task(fetch())
                 self._inflight[key] = task
+                logger.info(
+                    "provider_cache event=miss entries=%d inflight=%d",
+                    len(self._entries),
+                    len(self._inflight),
+                )
+            else:
+                self._coalesced += 1
+                logger.info(
+                    "provider_cache event=coalesced entries=%d inflight=%d",
+                    len(self._entries),
+                    len(self._inflight),
+                )
 
         try:
             venues = await asyncio.shield(task)
@@ -154,5 +200,11 @@ class CachedPlacesProvider:
                 self._entries.move_to_end(key)
                 while len(self._entries) > self._max_entries:
                     self._entries.popitem(last=False)
+                    self._evictions += 1
+                    logger.info(
+                        "provider_cache event=eviction entries=%d max_entries=%d",
+                        len(self._entries),
+                        self._max_entries,
+                    )
 
         return list(venues)
