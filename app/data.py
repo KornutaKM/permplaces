@@ -44,4 +44,5 @@ class Venue:
     changing_table: bool | None = None
     price_label: str | None = None
     rating: float | None = None
+    rating_scale: float | None = None
     review_count: int | None = None

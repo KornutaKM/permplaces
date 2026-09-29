@@ -11,6 +11,7 @@ from app.health import HealthServer
 from app.providers.cache import CachedPlacesProvider
 from app.providers.composite import CompositePlacesProvider
 from app.providers.failover import FailoverPlacesProvider
+from app.providers.foursquare import FoursquareProvider
 from app.providers.overpass import OverpassProvider
 from app.providers.twogis import TwoGISProvider
 from app.search import SearchService
@@ -46,7 +47,7 @@ async def main() -> None:
 
     aggregate_providers = [osm_cache]
     caches = [("osm", osm_cache)]
-    closable_providers: list[OverpassProvider | TwoGISProvider] = [
+    closable_providers: list[OverpassProvider | TwoGISProvider | FoursquareProvider] = [
         *overpass_providers
     ]
 
@@ -66,6 +67,22 @@ async def main() -> None:
         caches.append(("2gis", twogis_cache))
         closable_providers.append(twogis_provider)
 
+    foursquare_provider: FoursquareProvider | None = None
+    if settings.foursquare_api_key.strip():
+        foursquare_provider = FoursquareProvider(
+            api_key=settings.foursquare_api_key,
+            endpoint=settings.foursquare_url,
+            timeout_seconds=settings.foursquare_timeout_seconds,
+        )
+        foursquare_cache = CachedPlacesProvider(
+            foursquare_provider,
+            ttl_seconds=settings.provider_cache_ttl_seconds,
+            max_entries=settings.provider_cache_max_entries,
+        )
+        aggregate_providers.append(foursquare_cache)
+        caches.append(("foursquare", foursquare_cache))
+        closable_providers.append(foursquare_provider)
+
     composite_provider = CompositePlacesProvider(aggregate_providers)
     search_service = SearchService(composite_provider)
     favorites_repository = FavoritesRepository(settings.database_path)
@@ -81,10 +98,12 @@ async def main() -> None:
 
         logger.info(
             "permplaces_start providers=%d overpass_endpoints=%d twogis_enabled=%s "
-            "cache_ttl_seconds=%s cache_max_entries=%d health_port=%d",
+            "foursquare_enabled=%s cache_ttl_seconds=%s cache_max_entries=%d "
+            "health_port=%d",
             len(aggregate_providers),
             len(settings.overpass_endpoints),
             twogis_provider is not None,
+            foursquare_provider is not None,
             settings.provider_cache_ttl_seconds,
             settings.provider_cache_max_entries,
             settings.health_port,

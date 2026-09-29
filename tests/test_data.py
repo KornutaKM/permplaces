@@ -320,3 +320,25 @@ def test_share_url_rejects_unsafe_source_url_and_falls_back_to_map() -> None:
         )
     ]
     assert "javascript:" not in share_venue_url(venue)
+
+
+def test_foursquare_rating_card_keeps_ten_point_scale_and_attribution() -> None:
+    venue = Venue(
+        id="foursquare:abc",
+        name="FSQ place",
+        category="cafe",
+        category_label="Кофейня",
+        latitude=58.01,
+        longitude=56.25,
+        source="foursquare",
+        source_id="abc",
+        source_refs=(SourceRef("foursquare", "abc"),),
+        rating=8.7,
+        rating_scale=10.0,
+        review_count=321,
+    )
+
+    card = render_venue_card(venue)
+
+    assert "⭐ 8.7/10 (321)" in card
+    assert "Foursquare" in card

@@ -274,8 +274,14 @@ def venue_keyboard(venue: Venue) -> InlineKeyboardMarkup:
             InlineKeyboardButton(text="↗️ Поделиться", url=share_venue_url(venue)),
         ]
     )
-    if venue.source_url:
-        rows.append([InlineKeyboardButton(text="🗺 Открыть в OSM", url=venue.source_url)])
+    source_url = _safe_http_url(venue.source_url)
+    if source_url:
+        source_label = {
+            "osm": "🗺 Открыть в OSM",
+            "2gis": "🗺 Открыть в 2ГИС",
+            "foursquare": "🗺 Открыть в Foursquare",
+        }.get(venue.source, "🗺 Открыть источник")
+        rows.append([InlineKeyboardButton(text=source_label, url=source_url)])
     rows.append([InlineKeyboardButton(text="← Назад к результатам", callback_data="results:current")])
     return InlineKeyboardMarkup(inline_keyboard=rows)
 
@@ -293,6 +299,8 @@ def render_venue_card(venue: Venue, *, position: int = 1, total: int = 1) -> str
 
     if venue.rating is not None:
         rating = f"⭐ {venue.rating:.1f}"
+        if venue.rating_scale is not None:
+            rating += f"/{venue.rating_scale:g}"
         if venue.review_count is not None:
             rating += f" ({venue.review_count})"
         lines.append(rating)
@@ -359,6 +367,8 @@ def render_venue_card(venue: Venue, *, position: int = 1, total: int = 1) -> str
         )
     if "2gis" in providers:
         attribution.append("2ГИС")
+    if "foursquare" in providers:
+        attribution.append('<a href="https://foursquare.com/">Foursquare</a>')
 
     if attribution:
         lines.extend(["", "<i>Источники: " + "; ".join(attribution) + "</i>"])

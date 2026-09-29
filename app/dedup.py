@@ -27,6 +27,7 @@ _MERGE_FIELDS = (
     "changing_table",
     "price_label",
     "rating",
+    "rating_scale",
     "review_count",
 )
 
@@ -173,13 +174,20 @@ def merge_venues(primary: Venue, secondary: Venue) -> Venue:
             updates[field_name] = getattr(secondary, field_name)
             chosen_sources[field_name] = _field_source(secondary, field_name)
 
-    # Rating and review count are an atomic provider-backed pair. Never combine a
-    # rating from one provider with the review count of another provider.
+    # Rating, its scale, and review count are an atomic provider-backed group.
+    # Never make a synthetic score by combining metadata from different providers.
     if primary.rating is None and secondary.rating is not None:
         updates["rating"] = secondary.rating
+        updates["rating_scale"] = secondary.rating_scale
         updates["review_count"] = secondary.review_count
         chosen_sources["rating"] = _field_source(secondary, "rating")
+        chosen_sources.pop("rating_scale", None)
         chosen_sources.pop("review_count", None)
+        if secondary.rating_scale is not None:
+            chosen_sources["rating_scale"] = _field_source(
+                secondary,
+                "rating_scale",
+            )
         if secondary.review_count is not None:
             chosen_sources["review_count"] = _field_source(
                 secondary,
