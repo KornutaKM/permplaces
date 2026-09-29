@@ -11,6 +11,7 @@ from app.providers.cache import CachedPlacesProvider
 from app.providers.composite import CompositePlacesProvider
 from app.providers.failover import FailoverPlacesProvider
 from app.providers.overpass import OverpassProvider
+from app.providers.twogis import TwoGISProvider
 from app.search import SearchService
 from app.storage import FavoritesRepository
 
@@ -36,19 +37,43 @@ async def main() -> None:
         for endpoint in settings.overpass_endpoints
     ]
     failover_provider = FailoverPlacesProvider(overpass_providers)
-    cached_provider = CachedPlacesProvider(
+    osm_cache = CachedPlacesProvider(
         failover_provider,
         ttl_seconds=settings.provider_cache_ttl_seconds,
         max_entries=settings.provider_cache_max_entries,
     )
-    composite_provider = CompositePlacesProvider([cached_provider])
+
+    aggregate_providers = [osm_cache]
+    caches = [("osm", osm_cache)]
+    closable_providers: list[object] = [*overpass_providers]
+
+    twogis_provider: TwoGISProvider | None = None
+    if settings.twogis_api_key.strip():
+        twogis_provider = TwoGISProvider(
+            api_key=settings.twogis_api_key,
+            endpoint=settings.twogis_url,
+            timeout_seconds=settings.twogis_timeout_seconds,
+        )
+        twogis_cache = CachedPlacesProvider(
+            twogis_provider,
+            ttl_seconds=settings.provider_cache_ttl_seconds,
+            max_entries=settings.provider_cache_max_entries,
+        )
+        aggregate_providers.append(twogis_cache)
+        caches.append(("2gis", twogis_cache))
+        closable_providers.append(twogis_provider)
+
+    composite_provider = CompositePlacesProvider(aggregate_providers)
     search_service = SearchService(composite_provider)
     favorites_repository = FavoritesRepository(settings.database_path)
     await favorites_repository.initialize()
 
     logger.info(
-        "permplaces_start overpass_endpoints=%d cache_ttl_seconds=%s cache_max_entries=%d",
+        "permplaces_start providers=%d overpass_endpoints=%d twogis_enabled=%s "
+        "cache_ttl_seconds=%s cache_max_entries=%d",
+        len(aggregate_providers),
         len(settings.overpass_endpoints),
+        twogis_provider is not None,
         settings.provider_cache_ttl_seconds,
         settings.provider_cache_max_entries,
     )
@@ -60,17 +85,25 @@ async def main() -> None:
             favorites_repository=favorites_repository,
         )
     finally:
-        cache_stats = cached_provider.stats()
-        logger.info(
-            "permplaces_stop cache_hits=%d cache_misses=%d cache_coalesced=%d "
-            "cache_evictions=%d cache_entries=%d",
-            cache_stats.hits,
-            cache_stats.misses,
-            cache_stats.coalesced,
-            cache_stats.evictions,
-            cache_stats.entries,
-        )
-        await asyncio.gather(*(provider.close() for provider in overpass_providers))
+        for provider_name, cache in caches:
+            cache_stats = cache.stats()
+            logger.info(
+                "permplaces_stop provider=%s cache_hits=%d cache_misses=%d "
+                "cache_coalesced=%d cache_evictions=%d cache_entries=%d",
+                provider_name,
+                cache_stats.hits,
+                cache_stats.misses,
+                cache_stats.coalesced,
+                cache_stats.evictions,
+                cache_stats.entries,
+            )
+
+        close_calls = [
+            provider.close()
+            for provider in closable_providers
+            if hasattr(provider, "close")
+        ]
+        await asyncio.gather(*close_calls)
         await bot.session.close()
 
 
