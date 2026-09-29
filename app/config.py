@@ -29,6 +29,15 @@ class Settings(BaseSettings):
         alias="TWOGIS_URL",
     )
     twogis_timeout_seconds: float = Field(default=10.0, alias="TWOGIS_TIMEOUT_SECONDS")
+    foursquare_api_key: str = Field(default="", alias="FOURSQUARE_API_KEY")
+    foursquare_url: str = Field(
+        default="https://places-api.foursquare.com/places/search",
+        alias="FOURSQUARE_URL",
+    )
+    foursquare_timeout_seconds: float = Field(
+        default=10.0,
+        alias="FOURSQUARE_TIMEOUT_SECONDS",
+    )
     health_host: str = Field(default="0.0.0.0", alias="HEALTH_HOST")
     health_port: int = Field(default=8080, alias="HEALTH_PORT", ge=1, le=65535)
 

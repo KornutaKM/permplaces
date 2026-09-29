@@ -13,6 +13,7 @@ def venue(
     phone: str | None = None,
     website: str | None = None,
     rating: float | None = None,
+    rating_scale: float | None = None,
     review_count: int | None = None,
 ) -> Venue:
     return Venue(
@@ -28,6 +29,7 @@ def venue(
         phone=phone,
         website=website,
         rating=rating,
+        rating_scale=rating_scale,
         review_count=review_count,
     )
 
@@ -168,3 +170,23 @@ def test_single_provider_result_gets_explicit_provenance() -> None:
         source.field_name == "name" and source.provider == "osm"
         for source in item.field_sources
     )
+
+
+def test_rating_scale_is_kept_with_secondary_rating_source() -> None:
+    primary = venue(source="osm", source_id="node/1")
+    secondary = venue(
+        source="foursquare",
+        source_id="fsq-1",
+        rating=8.9,
+        rating_scale=10.0,
+        review_count=480,
+    )
+
+    merged = merge_venues(primary, secondary)
+
+    assert merged.rating == 8.9
+    assert merged.rating_scale == 10.0
+    assert merged.review_count == 480
+    assert {
+        item.field_name: item.provider for item in merged.field_sources
+    }["rating_scale"] == "foursquare"

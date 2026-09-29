@@ -4,7 +4,7 @@ Telegram-ассистент для поиска кафе, ресторанов, 
 
 ## Статус
 
-Версия 0.19 делает действия после выбора места portable: маршрут открывается через Telegram Location с быстрыми ссылками на 2ГИС, Google Maps и OpenStreetMap, а «Поделиться» работает без Telegram inline-mode.
+Версия 0.20 добавляет опциональное Foursquare-enrichment с provider-backed рейтингом, числом оценок и price tier, сохраняя portable-маршруты и шаринг из v0.19.
 
 Рабочие вертикальные сценарии:
 
@@ -53,6 +53,9 @@ Telegram-ассистент для поиска кафе, ресторанов, 
 - multi-provider aggregation foundation с conservative dedup;
 - source-level и field-level provenance для объединённых карточек;
 - опциональный 2GIS Places provider для nearby-поиска при заданном `TWOGIS_API_KEY`;
+- опциональный Foursquare Places API (New) provider при заданном `FOURSQUARE_API_KEY`;
+- provider-backed Foursquare rating, `stats.total_ratings` и price tier 1–4;
+- явная rating scale, чтобы оценки разных провайдеров нельзя было спутать;
 - provider-aware source attribution в карточке;
 - `/health/live` и `/health/ready` внутри контейнера;
 - Docker HEALTHCHECK, который показывает `healthy` только после runtime + SQLite initialization;
@@ -151,6 +154,11 @@ TWOGIS_API_KEY=
 TWOGIS_URL=https://catalog.api.2gis.com/3.0/items
 TWOGIS_TIMEOUT_SECONDS=10
 
+# Optional Foursquare enrichment.
+FOURSQUARE_API_KEY=
+FOURSQUARE_URL=https://places-api.foursquare.com/places/search
+FOURSQUARE_TIMEOUT_SECONDS=10
+
 HEALTH_HOST=0.0.0.0
 HEALTH_PORT=8080
 ```
@@ -182,16 +190,16 @@ CompositePlacesProvider
    ↓
 Cached / failover provider adapters
    ↓
-OverpassProvider + optional TwoGISProvider
+OverpassProvider + optional TwoGISProvider + optional FoursquareProvider
    ↓
-OpenStreetMap + 2GIS Places API
+OpenStreetMap + 2GIS Places API + Foursquare Places API (New)
 ```
 
 Provider abstraction теперь включает deterministic aggregation и provenance, поэтому второй источник можно подключать без смешивания фактов или переписывания Telegram UX.
 
 ## Следующие этапы
 
-1. Исследовать отдельный источник, который легально отдаёт rating/review values; 2GIS Places API 3.0 стандартно отдаёт только наличие rating/reviews, не значения/тексты.
+1. Проверить Foursquare field entitlement на production service key и реальную полноту данных по Перми.
 2. Добавить average-check enrichment только после region-specific attribute discovery и provenance.
 3. Сценарий «На свидание» после появления достаточно надёжных признаков.
 4. Production deployment runbook: secrets, backups, restore drill и deploy/rollback procedure.
@@ -314,3 +322,20 @@ The default Compose runtime uses defense-in-depth controls:
 
 CI verifies the image user is non-root, the data volume remains writable, and writes to the
 container root filesystem fail as expected.
+
+
+## Foursquare enrichment
+
+Foursquare отключён по умолчанию. Если `FOURSQUARE_API_KEY` пуст, ни одного запроса к
+Foursquare не выполняется.
+
+Включённый adapter работает только для nearby-поиска и может добавить к совпавшему месту:
+
+- Foursquare rating с явной шкалой;
+- число оценок `stats.total_ratings`;
+- price tier 1–4;
+- provider-backed Wi-Fi, outdoor seating и opening-state признаки.
+
+Рейтинг хранится вместе со шкалой и provenance; PermPlaces не смешивает score одного provider
+с rating-count другого. Районный поиск остаётся OSM-authoritative. Полный контракт и
+fail-closed ограничения описаны в `docs/FOURSQUARE.md`.
