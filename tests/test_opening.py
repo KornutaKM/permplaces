@@ -2,7 +2,6 @@ from datetime import UTC, datetime
 
 from app.opening import OpeningState, opening_state
 
-
 PERM_LAT = 58.01046
 PERM_LON = 56.25017
 FIXED_TIME = datetime(2026, 9, 29, 12, 0, tzinfo=UTC)
