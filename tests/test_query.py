@@ -1,5 +1,5 @@
 from app.filters import PlaceFilters
-from app.query import ParsedSearchQuery, parse_search_query
+from app.query import ParsedSearchQuery, parse_search_query, plan_search_query
 
 
 def test_parse_category_filters_radius_and_district() -> None:
@@ -72,3 +72,52 @@ def test_parse_nearby_intent() -> None:
     assert parsed.filters.wifi is True
     assert parsed.wifi is True
     assert parsed.nearby is True
+
+
+
+def test_plan_explicit_district_overrides_previous_location_scope() -> None:
+    parsed = parse_search_query("ресторан в Ленинском районе 2 км")
+    plan = plan_search_query(
+        parsed,
+        {
+            "search_scope": "location",
+            "latitude": 58.01,
+            "longitude": 56.25,
+        },
+    )
+
+    assert plan.updates["search_scope"] == "district"
+    assert plan.updates["district_relation_id"] == 1_268_697
+    assert plan.radius_ignored is True
+    assert plan.requires_location is False
+
+
+def test_plan_nearby_switches_from_district_to_saved_location() -> None:
+    parsed = parse_search_query("кофе рядом 1200 м")
+    plan = plan_search_query(
+        parsed,
+        {
+            "search_scope": "district",
+            "latitude": 58.01,
+            "longitude": 56.25,
+        },
+    )
+
+    assert plan.updates["search_scope"] == "location"
+    assert plan.updates["radius_m"] == 1200
+    assert plan.requires_location is False
+
+
+def test_plan_nearby_requires_location_when_coordinates_are_missing() -> None:
+    parsed = parse_search_query("кофе рядом")
+    plan = plan_search_query(parsed, {"search_scope": "district"})
+
+    assert plan.requires_location is True
+    assert "search_scope" not in plan.updates
+
+
+def test_plan_negated_feature_can_disable_existing_filter() -> None:
+    parsed = parse_search_query("кафе без Wi-Fi")
+    plan = plan_search_query(parsed, {"filter_wifi": True})
+
+    assert plan.updates["filter_wifi"] is False
