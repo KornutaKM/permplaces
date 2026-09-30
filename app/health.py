@@ -16,6 +16,9 @@ class HealthState:
         self.ready = False
 
 
+_HEALTH_STATE_KEY = web.AppKey("health_state", HealthState)
+
+
 class HealthServer:
     def __init__(
         self,
@@ -34,7 +37,7 @@ class HealthServer:
             raise RuntimeError("health server is already started")
 
         app = web.Application()
-        app["health_state"] = self.state
+        app[_HEALTH_STATE_KEY] = self.state
         app.router.add_get("/health/live", live_handler)
         app.router.add_get("/health/ready", ready_handler)
 
@@ -63,7 +66,7 @@ async def live_handler(request: web.Request) -> web.Response:
 
 
 async def ready_handler(request: web.Request) -> web.Response:
-    state = request.app["health_state"]
+    state = request.app[_HEALTH_STATE_KEY]
     if not isinstance(state, HealthState):
         raise TypeError("health state is not configured")
 
