@@ -2,7 +2,7 @@ import asyncio
 
 import pytest
 
-from app.data import FieldSource, SourceRef, Venue
+from app.data import FieldSource, PhotoRef, SourceRef, Venue
 from app.storage import FavoritesRepository
 
 
@@ -136,6 +136,14 @@ async def test_favorites_round_trip_multi_provider_provenance(tmp_path) -> None:
         rating=4.8,
         review_count=150,
         menu_url="https://menu.example.test/place",
+        photos=(
+            PhotoRef(
+                provider="foursquare",
+                source_id="photo-500",
+                url="https://images.example.test/original/500.jpg",
+                attribution="Powered by Foursquare",
+            ),
+        ),
     )
 
     repository = FavoritesRepository(str(database_path))
@@ -149,3 +157,4 @@ async def test_favorites_round_trip_multi_provider_provenance(tmp_path) -> None:
     assert restored.rating == 4.8
     assert restored.review_count == 150
     assert restored.menu_url == "https://menu.example.test/place"
+    assert restored.photos == venue.photos
