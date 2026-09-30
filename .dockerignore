@@ -6,4 +6,6 @@ __pycache__
 .ruff_cache
 .env
 tests
-docs\nbackups\n.production-previous-sha\n
+docs
+backups
+.production-previous-sha
