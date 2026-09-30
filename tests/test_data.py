@@ -454,3 +454,11 @@ def test_venue_detail_keyboard_closes_without_mutating_results_message() -> None
     )
 
     assert close_button.callback_data == "detail:close"
+
+    favorite_button = next(
+        button
+        for row in venue_keyboard(venue).inline_keyboard
+        for button in row
+        if button.text == "❤️ В избранное"
+    )
+    assert favorite_button.callback_data == "detail_favorite:osm:node/detail"
