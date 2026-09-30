@@ -49,6 +49,7 @@ Fail-closed cases:
 - rating: Foursquare 0–10 scale;
 - rating count: `stats.total_ratings`;
 - price: Foursquare 1–4 tier, rendered as `₽` through `₽₽₽₽`;
+- photos: up to three valid Foursquare photo references from the search response;
 - menu: accepted only as an explicit `http`/`https` URL returned by Foursquare;
 - missing or malformed values remain missing;
 - Foursquare is shown in card attribution whenever it contributes data.
@@ -82,3 +83,15 @@ No menu URL is inferred from the venue website, search-engine results, venue nam
 If the provider omits the field, the button is absent. When an OSM-primary card is enriched with
 a Foursquare menu URL, field-level provenance records Foursquare as the source and the card keeps
 the required `Powered by Foursquare` credit.
+
+
+## Photo contract
+
+The search request explicitly asks for the Foursquare `photos` field. Each accepted item must
+provide a non-empty `prefix` and `suffix`; PermPlaces assembles the provider URL with the
+Foursquare `original` size token and accepts it only when the result is HTTP(S).
+
+Photo references are stored as a provider-backed tuple with the exact Foursquare photo identity
+when supplied. Dedup never concatenates photo collections from different providers: if the
+primary venue already has photos, a secondary provider cannot silently mix another collection
+into the same field.
