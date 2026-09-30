@@ -136,8 +136,9 @@ Foursquare photo metadata is accepted only through provider responses and normal
 provider-backed photo references. PermPlaces does not scrape websites for imagery.
 
 The first safe photo may be sent as the Telegram detail-card media. If the photo URL is absent,
-unsafe, or the rendered caption would exceed Telegram's photo-caption limit, the bot falls back
-to a normal text detail card without losing any sourced facts or actions.
+unsafe, the rendered caption would exceed Telegram's photo-caption limit, or Telegram rejects the
+remote media fetch, the bot falls back to a normal text detail card without losing any sourced
+facts or actions.
 
 ## Next UX milestone
 
