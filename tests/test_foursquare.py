@@ -23,6 +23,7 @@ async def test_foursquare_request_and_parse_rich_fields() -> None:
         assert "rating" in params["fields"]
         assert "stats" in params["fields"]
         assert "menu" in params["fields"]
+        assert "photos" in params["fields"]
         return httpx.Response(
             200,
             json={
@@ -38,6 +39,18 @@ async def test_foursquare_request_and_parse_rich_fields() -> None:
                         "tel": "+7 342 200-00-00",
                         "website": "https://example.test",
                         "menu": "https://menu.example.test/fsq-1",
+                        "photos": [
+                            {
+                                "fsq_photo_id": "photo-1",
+                                "prefix": "https://images.example.test/",
+                                "suffix": "/one.jpg",
+                            },
+                            {
+                                "fsq_photo_id": "photo-2",
+                                "prefix": "https://images.example.test/",
+                                "suffix": "/two.jpg",
+                            },
+                        ],
                         "rating": 8.7,
                         "price": 2,
                         "stats": {"total_ratings": 321},
@@ -79,6 +92,13 @@ async def test_foursquare_request_and_parse_rich_fields() -> None:
     assert venue.rating_scale == 10.0
     assert venue.review_count == 321
     assert venue.menu_url == "https://menu.example.test/fsq-1"
+    assert [photo.url for photo in venue.photos] == [
+        "https://images.example.test/original/one.jpg",
+        "https://images.example.test/original/two.jpg",
+    ]
+    assert venue.photos[0].provider == "foursquare"
+    assert venue.photos[0].source_id == "photo-1"
+    assert venue.photos[0].attribution == "Powered by Foursquare"
     assert venue.price_label == "₽₽"
     assert venue.outdoor_seating is True
     assert venue.wifi is True
@@ -320,3 +340,56 @@ async def test_foursquare_rejects_unsafe_menu_url() -> None:
     await client.aclose()
 
     assert venues[0].menu_url is None
+
+
+@pytest.mark.asyncio
+async def test_foursquare_rejects_unsafe_or_incomplete_photo_urls() -> None:
+    async def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            200,
+            json={
+                "results": [
+                    {
+                        "fsq_place_id": "photo-safety",
+                        "name": "Photo safety",
+                        "latitude": 58.01,
+                        "longitude": 56.25,
+                        "photos": [
+                            {
+                                "fsq_photo_id": "unsafe",
+                                "prefix": "javascript:",
+                                "suffix": "alert(1)",
+                            },
+                            {
+                                "fsq_photo_id": "missing-suffix",
+                                "prefix": "https://images.example.test/",
+                            },
+                            {
+                                "fsq_photo_id": "safe",
+                                "prefix": "https://images.example.test/",
+                                "suffix": "/safe.jpg",
+                            },
+                        ],
+                    }
+                ]
+            },
+        )
+
+    client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
+    provider = FoursquareProvider(
+        api_key="key",
+        endpoint="https://example.test",
+        client=client,
+    )
+
+    venues = await provider.search_nearby(
+        category="cafe",
+        latitude=58.01,
+        longitude=56.25,
+        radius_m=1000,
+        limit=5,
+    )
+    await client.aclose()
+
+    assert len(venues[0].photos) == 1
+    assert venues[0].photos[0].url == "https://images.example.test/original/safe.jpg"
