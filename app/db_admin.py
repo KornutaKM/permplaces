@@ -5,6 +5,7 @@ import os
 import shutil
 import sqlite3
 import tempfile
+from contextlib import closing
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -29,7 +30,7 @@ def verify_database(path: str | Path) -> Path:
         raise DatabaseAdminError(f"Database file does not exist: {database_path}")
 
     try:
-        with _read_only_connection(database_path) as connection:
+        with closing(_read_only_connection(database_path)) as connection:
             result = _quick_check(connection)
     except sqlite3.Error as exc:
         raise DatabaseAdminError(
@@ -69,8 +70,8 @@ def backup_database(
     temporary_path = Path(temporary_name)
 
     try:
-        with _read_only_connection(source_path) as source_connection:
-            with sqlite3.connect(temporary_path) as backup_connection:
+        with closing(_read_only_connection(source_path)) as source_connection:
+            with closing(sqlite3.connect(temporary_path)) as backup_connection:
                 source_connection.backup(backup_connection)
                 result = _quick_check(backup_connection)
                 if result != ("ok",):
