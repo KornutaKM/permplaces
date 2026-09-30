@@ -280,7 +280,10 @@ def venue_keyboard(venue: Venue) -> InlineKeyboardMarkup:
 
     rows.append(
         [
-            InlineKeyboardButton(text="❤️ В избранное", callback_data=f"favorite:{venue.id}"),
+            InlineKeyboardButton(
+                text="❤️ В избранное",
+                callback_data=f"detail_favorite:{venue.id}",
+            ),
             InlineKeyboardButton(text="↗️ Поделиться", url=share_venue_url(venue)),
         ]
     )
