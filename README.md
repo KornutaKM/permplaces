@@ -4,7 +4,7 @@ Telegram-ассистент для поиска кафе, ресторанов, 
 
 ## Статус
 
-Версия 0.22 добавляет visual venue cards: Foursquare photos проходят безопасную нормализацию и открываются в отдельной Telegram detail-card, не ломая навигацию результатов.
+Версия 0.23 вводит Scenario Engine v1: существующие сценарии планируются через единый deterministic contract, а карточки сценариев объясняют «Почему подходит» только подтверждёнными или локально вычисленными фактами.
 
 Рабочие вертикальные сценарии:
 
@@ -44,6 +44,8 @@ Telegram-ассистент для поиска кафе, ресторанов, 
 - явное переключение scope по словам «рядом», названию района или «по всей Перми»;
 - безопасный диапазон свободного радиуса 100 м–10 км с явной ошибкой вне диапазона;
 - готовые сценарии для кофе, еды, завтрака, напитков и работы с Wi-Fi;
+- единый Scenario Engine v1 для coffee/eat/breakfast/drink/work/family/late/random с явными filter/ranking/selection contracts;
+- блок «Почему подходит» только из подтверждённых данных: расстояние, Wi-Fi, family features, open now/late, provider rating и price tier;
 - 👨‍👩‍👧 «С детьми» по `kids_area`, `highchair` или `changing_table`;
 - 🌙 «Поздно вечером» — заведения, открытые сегодня в 23:00 по OSM `opening_hours`;
 - 🎲 реальный случайный выбор среди смешанных food & drink категорий;
@@ -204,7 +206,7 @@ Provider abstraction теперь включает deterministic aggregation и 
 
 1. Проверить Foursquare field entitlement на production service key и реальную полноту rating/menu/photo данных по Перми.
 2. Добавить average-check enrichment только после region-specific attribute discovery и provenance.
-3. Перейти к explainable smart scenarios, начиная со сценариев с уже подтверждаемыми признаками.
+3. Расширять Scenario Engine только новыми provider-backed сигналами; сценарий «На свидание» остаётся выключенным без подтверждаемой модели атмосферы.
 4. Production deployment runbook: secrets, backups, restore drill и deploy/rollback procedure.
 
 
@@ -243,6 +245,10 @@ docker compose logs -f bot
 
 
 ## Семантика сценариев
+
+Scenario Engine v1 хранит определения сценариев отдельно от Telegram handlers. Каждый план явно задаёт категорию, обязательные provider-backed filters, candidate limit, ranking и selection strategy. Для обычных сценариев сохраняется deterministic порядок SearchService; «Куда-нибудь» остаётся отдельной явно случайной стратегией.
+
+Блок «Почему подходит» fail-closed: неизвестные факты не превращаются в причины. Он может использовать только уже подтверждённые данные карточки или локально вычисленное расстояние. Rating показывается в объяснении только вместе с явной шкалой.
 
 ### 👨‍👩‍👧 С детьми
 

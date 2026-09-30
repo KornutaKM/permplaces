@@ -12,9 +12,14 @@ from app.districts import DISTRICT_BY_KEY, PERM_DISTRICTS, PERM_RELATION_ID
 from app.filters import PlaceFilters
 from app.providers.overpass import ProviderError
 from app.query import parse_search_query, plan_search_query
+from app.scenarios import (
+    plan_scenario,
+    rank_scenario_candidates,
+    render_scenario_reasons,
+    select_scenario_candidate,
+)
 from app.search import SearchService
 from app.storage import FavoritesRepository
-from app.surprise import choose_surprise
 from app.ui import (
     CATEGORY_LABELS,
     categories_keyboard,
@@ -47,18 +52,6 @@ WELCOME = """<b>Привет! 👋
 ❤️ Избранные места
 
 Как хотите искать заведение?"""
-
-
-_SCENARIO_CATEGORIES = {
-    "coffee": "cafe",
-    "eat": "restaurant",
-    "breakfast": "breakfast",
-    "drink": "bar",
-    "work": "cafe",
-    "family": "food_drink",
-    "late": "food_drink",
-    "random": "food_drink",
-}
 
 
 def _filters_from_state(data: dict[str, object]) -> PlaceFilters:
@@ -118,6 +111,7 @@ async def _run_search(
     search_service: SearchService,
     category: str,
     limit: int = 5,
+    result_scenario: str | None = None,
 ) -> list[Venue] | None:
     data = await state.get_data()
     scope = data.get("search_scope")
@@ -163,8 +157,35 @@ async def _run_search(
         results=[asdict(venue) for venue in venues],
         result_index=0,
         category=category,
+        result_scenario=result_scenario,
     )
     return venues
+
+
+def _render_result_card(
+    venue: Venue,
+    *,
+    position: int,
+    total: int,
+    scenario_name: str | None = None,
+) -> str:
+    card = render_venue_card(venue, position=position, total=total)
+    if scenario_name is None:
+        return card
+
+    plan = plan_scenario(scenario_name)
+    if plan is None:
+        return card
+
+    parts: list[str] = []
+    if plan.heading:
+        parts.append(f"<b>{plan.heading}</b>")
+    parts.append(card)
+
+    reasons = render_scenario_reasons(plan, venue)
+    if reasons:
+        parts.append(reasons)
+    return "\n\n".join(parts)
 
 
 async def _edit_current_result(callback: CallbackQuery, state: FSMContext) -> None:
@@ -189,8 +210,14 @@ async def _edit_current_result(callback: CallbackQuery, state: FSMContext) -> No
         return
 
     venue = _venue_from_dict(raw)
+    scenario_name = data.get("result_scenario")
     await callback.message.edit_text(
-        render_venue_card(venue, position=index + 1, total=len(results)),
+        _render_result_card(
+            venue,
+            position=index + 1,
+            total=len(results),
+            scenario_name=scenario_name if isinstance(scenario_name, str) else None,
+        ),
         reply_markup=results_keyboard(
             venue.id,
             can_previous=index > 0,
@@ -360,6 +387,7 @@ async def favorites(
         results=[asdict(venue) for venue in venues],
         result_index=0,
         category="favorites",
+        result_scenario=None,
     )
     venue = venues[0]
     await message.answer(
@@ -688,30 +716,26 @@ async def scenario(
         return
 
     scenario_name = callback.data.split(":", 1)[1]
-    category = _SCENARIO_CATEGORIES.get(scenario_name)
-    if category is None:
+    plan = plan_scenario(scenario_name)
+    if plan is None:
         await callback.message.edit_text(
-            "Для этого сценария нужны дополнительные признаки заведений. "
-            "Подключим его после базового каталога.",
+            "Для этого сценария нужны дополнительные подтверждаемые признаки заведений. "
+            "Подключим его, когда появится надёжный provider-backed сигнал.",
             reply_markup=categories_keyboard(),
         )
         return
 
-    if scenario_name == "work":
-        await state.update_data(filter_wifi=True)
-    elif scenario_name == "family":
-        await state.update_data(filter_family_friendly=True)
-    elif scenario_name == "late":
-        await state.update_data(filter_open_late=True)
-
-    candidate_limit = 20 if scenario_name == "random" else 5
+    updates = plan.state_update_dict()
+    if updates:
+        await state.update_data(**updates)
 
     try:
         venues = await _run_search(
             state=state,
             search_service=search_service,
-            category=category,
-            limit=candidate_limit,
+            category=plan.category,
+            limit=plan.candidate_limit,
+            result_scenario=plan.key,
         )
     except ProviderError:
         await callback.message.edit_text(
@@ -732,28 +756,25 @@ async def scenario(
         )
         return
 
-    if scenario_name == "random":
-        index, venue = choose_surprise(venues)
-        await state.update_data(result_index=index)
-        heading = "🎲 <b>Случайный выбор</b>\n\n"
-    else:
-        index = 0
-        venue = venues[0]
-        heading = {
-            "family": "👨‍👩‍👧 <b>Места с подтверждёнными удобствами для детей</b>\n\n",
-            "late": "🌙 <b>Открыто сегодня в 23:00 по графику OSM</b>\n\n",
-        }.get(scenario_name, "")
+    ranked = rank_scenario_candidates(plan, venues)
+    index, venue = select_scenario_candidate(plan, ranked)
+    await state.update_data(
+        results=[asdict(item) for item in ranked],
+        result_index=index,
+        result_scenario=plan.key,
+    )
 
     await callback.message.edit_text(
-        heading + render_venue_card(
+        _render_result_card(
             venue,
             position=index + 1,
-            total=len(venues),
+            total=len(ranked),
+            scenario_name=plan.key,
         ),
         reply_markup=results_keyboard(
             venue.id,
             can_previous=index > 0,
-            can_next=index < len(venues) - 1,
+            can_next=index < len(ranked) - 1,
         ),
         disable_web_page_preview=True,
     )
