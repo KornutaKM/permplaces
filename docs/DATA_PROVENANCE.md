@@ -52,6 +52,10 @@ Favorites serialize both source references and field provenance. Time-relative d
 
 ## Current runtime
 
-v0.15 still activates only OpenStreetMap. The composite layer runs with one provider so current user-visible behavior stays unchanged.
+v0.25 keeps OpenStreetMap/Overpass as the primary provider and exact district-boundary authority. Geoapify Places is the recommended free optional secondary provider for nearby search when `GEOAPIFY_API_KEY` is configured.
 
-The purpose of this milestone is to make the next external catalog integration safe before adding rating/review/check data.
+2GIS and Foursquare integrations remain optional and disabled without explicit keys. Their absence must not reduce the correctness of the OSM/Geoapify path.
+
+Geoapify records retain `provider=geoapify` even though the underlying Places data is primarily OSM/open data. Cards containing Geoapify data therefore show both the required OpenStreetMap attribution and `Powered by Geoapify` on the free plan.
+
+See `docs/GEOAPIFY.md` for category, filter and credit-budget contracts.
