@@ -1,6 +1,7 @@
 from dataclasses import asdict
 
 from aiogram import F, Router
+from aiogram.exceptions import TelegramBadRequest
 from aiogram.filters import CommandStart
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
@@ -506,6 +507,27 @@ async def category_selected(
     )
 
 
+async def _send_venue_detail(message: Message, venue: Venue) -> None:
+    card = render_venue_card(venue)
+    photo_url = primary_photo_url(venue)
+    if photo_url and len(card) <= 1024:
+        try:
+            await message.answer_photo(
+                photo=photo_url,
+                caption=card,
+                reply_markup=venue_keyboard(venue),
+            )
+            return
+        except TelegramBadRequest:
+            pass
+
+    await message.answer(
+        card,
+        reply_markup=venue_keyboard(venue),
+        disable_web_page_preview=True,
+    )
+
+
 @router.callback_query(F.data.startswith("venue:"))
 async def venue_detail(callback: CallbackQuery, state: FSMContext) -> None:
     await callback.answer()
@@ -524,20 +546,7 @@ async def venue_detail(callback: CallbackQuery, state: FSMContext) -> None:
         await callback.message.edit_text("Карточка больше не доступна. Запустите поиск снова.")
         return
 
-    card = render_venue_card(venue)
-    photo_url = primary_photo_url(venue)
-    if photo_url and len(card) <= 1024:
-        await callback.message.answer_photo(
-            photo=photo_url,
-            caption=card,
-            reply_markup=venue_keyboard(venue),
-        )
-    else:
-        await callback.message.answer(
-            card,
-            reply_markup=venue_keyboard(venue),
-            disable_web_page_preview=True,
-        )
+    await _send_venue_detail(callback.message, venue)
 
 
 @router.callback_query(F.data == "detail:close")
