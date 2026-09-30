@@ -32,3 +32,20 @@ def test_health_port_validation() -> None:
         HEALTH_PORT=9090,
     )
     assert settings.health_port == 9090
+
+
+def test_geoapify_settings_are_opt_in() -> None:
+    settings = Settings(BOT_TOKEN="123456:abcdefghijklmnopqrstuvwxyzABCDE")
+    assert settings.geoapify_api_key == ""
+    assert settings.geoapify_url == "https://api.geoapify.com/v2/places"
+    assert settings.geoapify_timeout_seconds == 10.0
+
+    configured = Settings(
+        BOT_TOKEN="123456:abcdefghijklmnopqrstuvwxyzABCDE",
+        GEOAPIFY_API_KEY="free-key",
+        GEOAPIFY_URL="https://example.test/v2/places",
+        GEOAPIFY_TIMEOUT_SECONDS=4.5,
+    )
+    assert configured.geoapify_api_key == "free-key"
+    assert configured.geoapify_url == "https://example.test/v2/places"
+    assert configured.geoapify_timeout_seconds == 4.5

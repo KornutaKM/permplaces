@@ -12,6 +12,7 @@ from app.providers.cache import CachedPlacesProvider
 from app.providers.composite import CompositePlacesProvider
 from app.providers.failover import FailoverPlacesProvider
 from app.providers.foursquare import FoursquareProvider
+from app.providers.geoapify import GeoapifyProvider
 from app.providers.overpass import OverpassProvider
 from app.providers.twogis import TwoGISProvider
 from app.search import SearchService
@@ -47,9 +48,25 @@ async def main() -> None:
 
     aggregate_providers = [osm_cache]
     caches = [("osm", osm_cache)]
-    closable_providers: list[OverpassProvider | TwoGISProvider | FoursquareProvider] = [
-        *overpass_providers
-    ]
+    closable_providers: list[
+        OverpassProvider | GeoapifyProvider | TwoGISProvider | FoursquareProvider
+    ] = [*overpass_providers]
+
+    geoapify_provider: GeoapifyProvider | None = None
+    if settings.geoapify_api_key.strip():
+        geoapify_provider = GeoapifyProvider(
+            api_key=settings.geoapify_api_key,
+            endpoint=settings.geoapify_url,
+            timeout_seconds=settings.geoapify_timeout_seconds,
+        )
+        geoapify_cache = CachedPlacesProvider(
+            geoapify_provider,
+            ttl_seconds=settings.provider_cache_ttl_seconds,
+            max_entries=settings.provider_cache_max_entries,
+        )
+        aggregate_providers.append(geoapify_cache)
+        caches.append(("geoapify", geoapify_cache))
+        closable_providers.append(geoapify_provider)
 
     twogis_provider: TwoGISProvider | None = None
     if settings.twogis_api_key.strip():
@@ -97,11 +114,12 @@ async def main() -> None:
         health_server.state.mark_ready()
 
         logger.info(
-            "permplaces_start providers=%d overpass_endpoints=%d twogis_enabled=%s "
-            "foursquare_enabled=%s cache_ttl_seconds=%s cache_max_entries=%d "
-            "health_port=%d",
+            "permplaces_start providers=%d overpass_endpoints=%d geoapify_enabled=%s "
+            "twogis_enabled=%s foursquare_enabled=%s cache_ttl_seconds=%s "
+            "cache_max_entries=%d health_port=%d",
             len(aggregate_providers),
             len(settings.overpass_endpoints),
+            geoapify_provider is not None,
             twogis_provider is not None,
             foursquare_provider is not None,
             settings.provider_cache_ttl_seconds,

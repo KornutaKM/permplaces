@@ -462,3 +462,23 @@ def test_venue_detail_keyboard_closes_without_mutating_results_message() -> None
         if button.text == "❤️ В избранное"
     )
     assert favorite_button.callback_data == "detail_favorite:osm:node/detail"
+
+
+def test_geoapify_card_has_required_free_plan_attribution() -> None:
+    venue = Venue(
+        id="geoapify:place-1",
+        name="Geoapify cafe",
+        category="cafe",
+        category_label="Кофейня",
+        latitude=58.01,
+        longitude=56.25,
+        source="geoapify",
+        source_id="place-1",
+        source_refs=(SourceRef("geoapify", "place-1"),),
+    )
+
+    card = render_venue_card(venue)
+
+    assert "OpenStreetMap contributors" in card
+    assert "Powered by Geoapify" in card
+    assert "Источники:" in card

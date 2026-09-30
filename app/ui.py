@@ -293,6 +293,7 @@ def venue_keyboard(venue: Venue) -> InlineKeyboardMarkup:
             "osm": "🗺 Открыть в OSM",
             "2gis": "🗺 Открыть в 2ГИС",
             "foursquare": "🗺 Открыть в Foursquare",
+            "geoapify": "🗺 Открыть источник",
         }.get(venue.source, "🗺 Открыть источник")
         rows.append([InlineKeyboardButton(text=source_label, url=source_url)])
     rows.append([InlineKeyboardButton(text="← Закрыть карточку", callback_data="detail:close")])
@@ -373,10 +374,14 @@ def render_venue_card(venue: Venue, *, position: int = 1, total: int = 1) -> str
     } or {venue.source}
 
     attribution: list[str] = []
-    if "osm" in providers:
+    if "osm" in providers or "geoapify" in providers:
         attribution.append(
             '<a href="https://www.openstreetmap.org/copyright">'
             "© OpenStreetMap contributors</a> · ODbL"
+        )
+    if "geoapify" in providers:
+        attribution.append(
+            '<a href="https://www.geoapify.com/">Powered by Geoapify</a>'
         )
     if "2gis" in providers:
         attribution.append("2ГИС")

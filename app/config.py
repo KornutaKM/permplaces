@@ -23,6 +23,15 @@ class Settings(BaseSettings):
     database_path: str = Field(default="data/permplaces.db", alias="DATABASE_PATH")
     provider_cache_ttl_seconds: float = Field(default=120.0, alias="PROVIDER_CACHE_TTL_SECONDS")
     provider_cache_max_entries: int = Field(default=256, alias="PROVIDER_CACHE_MAX_ENTRIES")
+    geoapify_api_key: str = Field(default="", alias="GEOAPIFY_API_KEY")
+    geoapify_url: str = Field(
+        default="https://api.geoapify.com/v2/places",
+        alias="GEOAPIFY_URL",
+    )
+    geoapify_timeout_seconds: float = Field(
+        default=10.0,
+        alias="GEOAPIFY_TIMEOUT_SECONDS",
+    )
     twogis_api_key: str = Field(default="", alias="TWOGIS_API_KEY")
     twogis_url: str = Field(
         default="https://catalog.api.2gis.com/3.0/items",
