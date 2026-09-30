@@ -4,7 +4,7 @@ Telegram-ассистент для поиска кафе, ресторанов, 
 
 ## Статус
 
-Версия 0.24 добавляет production operations contract: безопасный SQLite backup/verify/offline restore, pre-restore safety snapshot и пошаговый deploy/rollback runbook для Docker Compose.
+Версия 0.25 добавляет бесплатный optional Geoapify Places provider для nearby-поиска, credit-bounded запросы, fail-closed фильтры и обязательную Geoapify/OSM attribution.
 
 Рабочие вертикальные сценарии:
 
@@ -57,6 +57,10 @@ Telegram-ассистент для поиска кафе, ресторанов, 
 - Docker Compose build/config/smoke CI;
 - multi-provider aggregation foundation с conservative dedup;
 - source-level и field-level provenance для объединённых карточек;
+- рекомендуемый бесплатный Geoapify Places provider для nearby-поиска при заданном `GEOAPIFY_API_KEY`;
+- Geoapify-запрос ограничен 20 результатами, чтобы один provider-call укладывался в один Places credit по текущей публичной модели Geoapify;
+- Wi-Fi через Geoapify включается только по provider condition `internet_access`; неподдерживаемые filter-сигналы fail-closed;
+- обязательная `Powered by Geoapify` + OpenStreetMap attribution для карточек с Geoapify data;
 - опциональный 2GIS Places provider для nearby-поиска при заданном `TWOGIS_API_KEY`;
 - опциональный Foursquare Places API (New) provider при заданном `FOURSQUARE_API_KEY`;
 - provider-backed Foursquare rating, `stats.total_ratings` и price tier 1–4;
@@ -86,7 +90,11 @@ PermPlaces не придумывает отсутствующие факты.
 
 При поиске по району расстояние до пользователя не показывается и выдача сортируется по названию, потому что районный поиск не требует геолокацию пользователя.
 
-Если `opening_hours` отсутствует, невалиден или вычисляется как `unknown`, заведение не считается открытым для фильтра «Открыто сейчас». Рейтинг, отзывы, средний чек и полноценное меню OpenStreetMap обычно не предоставляет. Nearby-поиск теперь может получить рейтинг/price/menu из опционального Foursquare provider, если соответствующие поля доступны аккаунту.
+Если `opening_hours` отсутствует, невалиден или вычисляется как `unknown`, заведение не считается открытым для фильтра «Открыто сейчас». Рейтинг, отзывы, средний чек и полноценное меню OpenStreetMap обычно не предоставляет. Nearby-поиск может дополняться бесплатным Geoapify provider для базовых POI/address данных и подтверждённого Wi-Fi. Рейтинг/price/menu остаются доступны только из явно подключённых источников, которые действительно возвращают эти поля.
+
+## Бесплатный provider stack
+
+Рекомендуемая конфигурация разработки и небольшого запуска: **OSM/Overpass + Geoapify Free**. Geoapify не заменяет платные каталоги по рейтингам/отзывам/фото: отсутствующие поля остаются неизвестными. Подробный контракт: `docs/GEOAPIFY.md`.
 
 ## Production operations
 
@@ -160,6 +168,11 @@ DATABASE_PATH=data/permplaces.db
 PROVIDER_CACHE_TTL_SECONDS=120
 PROVIDER_CACHE_MAX_ENTRIES=256
 
+# Recommended free secondary provider; empty means OSM-only.
+GEOAPIFY_API_KEY=
+GEOAPIFY_URL=https://api.geoapify.com/v2/places
+GEOAPIFY_TIMEOUT_SECONDS=10
+
 # Optional: no 2GIS requests are made while this is empty.
 TWOGIS_API_KEY=
 TWOGIS_URL=https://catalog.api.2gis.com/3.0/items
@@ -201,19 +214,20 @@ CompositePlacesProvider
    ↓
 Cached / failover provider adapters
    ↓
-OverpassProvider + optional TwoGISProvider + optional FoursquareProvider
+OverpassProvider + optional GeoapifyProvider + optional paid catalog providers
    ↓
-OpenStreetMap + 2GIS Places API + Foursquare Places API (New)
+OpenStreetMap + Geoapify Places + optional 2GIS/Foursquare
 ```
 
 Provider abstraction теперь включает deterministic aggregation и provenance, поэтому второй источник можно подключать без смешивания фактов или переписывания Telegram UX.
 
 ## Следующие этапы
 
-1. Проверить Foursquare field entitlement на production service key и реальную полноту rating/menu/photo данных по Перми.
-2. Добавить average-check enrichment только после region-specific attribute discovery и provenance.
-3. Расширять Scenario Engine только новыми provider-backed сигналами; сценарий «На свидание» остаётся выключенным без подтверждаемой модели атмосферы.
-4. Выполнить первый production restore drill по `docs/PRODUCTION.md` и зафиксировать конкретный hosting/secret-manager choice.
+1. Получить бесплатный Geoapify API key и выполнить live-проверку покрытия кафе/ресторанов по Перми без включения платных провайдеров.
+2. Добавить Place Details enrichment только после измерения credit-бюджета и только для полей с явным provenance.
+3. Добавить average-check enrichment только после region-specific attribute discovery и provenance.
+4. Расширять Scenario Engine только новыми provider-backed сигналами; сценарий «На свидание» остаётся выключенным без подтверждаемой модели атмосферы.
+5. Выполнить первый production restore drill по `docs/PRODUCTION.md` и зафиксировать конкретный hosting/secret-manager choice.
 
 
 ## Overpass failover
