@@ -20,7 +20,7 @@ PermPlaces should feel like a compact city concierge rather than a database brow
 2. Choose geolocation, a Perm district, or free-text search.
 3. Choose/parse category and supported provider-backed filters.
 4. Browse result cards.
-5. Open a venue.
+5. Open a venue in a separate detail card; use a provider-backed photo when one is safely available.
 6. Send its map location, open it in an external map, share it, open its site/source, or save it to favorites.
 
 ## Home
@@ -73,6 +73,7 @@ Later:
 
 The card contains only sourced facts:
 
+- provider-backed photo when available; absence of a photo is a normal state;
 - name;
 - provider-backed category;
 - calculated distance;
@@ -96,6 +97,7 @@ Actions:
 - Сайт, only when the provider supplies a valid HTTP(S) URL
 - В избранное
 - Следующее / Предыдущее
+- Закрыть карточку — detail card is a separate message so result navigation remains intact
 
 ## Data-state rules
 
@@ -128,6 +130,15 @@ The parser is deterministic and result-blind. It currently understands:
 
 Unsupported or ambiguous semantics remain explicit rather than being guessed.
 
+## Visual venue cards
+
+Foursquare photo metadata is accepted only through provider responses and normalized into
+provider-backed photo references. PermPlaces does not scrape websites for imagery.
+
+The first safe photo may be sent as the Telegram detail-card media. If the photo URL is absent,
+unsafe, or the rendered caption would exceed Telegram's photo-caption limit, the bot falls back
+to a normal text detail card without losing any sourced facts or actions.
+
 ## Next UX milestone
 
-Improve result exploration and add new scenarios only where provider-backed evidence can support them.
+Add new scenarios only where provider-backed evidence can support them.
