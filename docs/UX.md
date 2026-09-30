@@ -140,6 +140,14 @@ unsafe, the rendered caption would exceed Telegram's photo-caption limit, or Tel
 remote media fetch, the bot falls back to a normal text detail card without losing any sourced
 facts or actions.
 
+## Explainable scenarios
+
+The live coffee/eat/breakfast/drink/work/family/late/random scenarios are routed through one deterministic Scenario Engine contract. Each plan declares its category, required provider-backed filters, candidate limit, ranking strategy and selection strategy.
+
+Normal scenarios preserve SearchService ordering. The random scenario remains explicitly random. Scenario result cards may add a “Почему подходит” block, but every line must come from confirmed venue facts or locally calculated distance. Unknown values remain absent. Rating is explainable only with an explicit rating scale.
+
+The “На свидание” scenario remains unavailable until a provider-backed atmosphere model exists; rating or photos must not be used as a hidden proxy.
+
 ## Next UX milestone
 
-Add new scenarios only where provider-backed evidence can support them.
+Add new scenarios only where provider-backed evidence can support them, then validate production provider coverage before enabling more subjective intents.
