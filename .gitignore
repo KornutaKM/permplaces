@@ -9,4 +9,6 @@ __pycache__/
 .DS_Store
 data/*.db
 data/*.db-shm
-data/*.db-wal\nbackups/\n.production-previous-sha\n
+data/*.db-wal
+backups/
+.production-previous-sha
