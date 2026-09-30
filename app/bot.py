@@ -78,7 +78,7 @@ def _venue_from_dict(value: dict[str, object]) -> Venue:
         restored["cuisine"] = tuple(str(item) for item in cuisine)
 
     source_refs = restored.get("source_refs")
-    if isinstance(source_refs, list):
+    if isinstance(source_refs, (list, tuple)):
         restored["source_refs"] = tuple(
             SourceRef(**item)
             for item in source_refs
@@ -86,7 +86,7 @@ def _venue_from_dict(value: dict[str, object]) -> Venue:
         )
 
     field_sources = restored.get("field_sources")
-    if isinstance(field_sources, list):
+    if isinstance(field_sources, (list, tuple)):
         restored["field_sources"] = tuple(
             FieldSource(**item)
             for item in field_sources
@@ -94,7 +94,7 @@ def _venue_from_dict(value: dict[str, object]) -> Venue:
         )
 
     photos = restored.get("photos")
-    if isinstance(photos, list):
+    if isinstance(photos, (list, tuple)):
         restored["photos"] = tuple(
             PhotoRef(**item)
             for item in photos
