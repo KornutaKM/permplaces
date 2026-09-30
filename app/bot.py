@@ -517,6 +517,7 @@ async def venue_detail(callback: CallbackQuery, state: FSMContext) -> None:
     if not isinstance(results, list):
         return
 
+    from_detail = callback.data.startswith("detail_favorite:")
     venue_id = callback.data.split(":", 1)[1]
     dict_results = [item for item in results if isinstance(item, dict)]
     venue = _find_result(dict_results, venue_id)
@@ -547,7 +548,9 @@ async def close_venue_detail(callback: CallbackQuery) -> None:
         await callback.message.delete()
 
 
-@router.callback_query(F.data.startswith("favorite:"))
+@router.callback_query(
+    F.data.startswith("favorite:") | F.data.startswith("detail_favorite:")
+)
 async def favorite(
     callback: CallbackQuery,
     state: FSMContext,
@@ -588,10 +591,17 @@ async def favorite(
     if not updated_results:
         await state.update_data(results=[], result_index=0)
         if callback.message:
-            await callback.message.edit_text(
-                "❤️ <b>Избранное пока пусто.</b>\n\n"
-                "Сохраните новое место из результатов поиска."
-            )
+            if from_detail:
+                await callback.message.delete()
+                await callback.message.answer(
+                    "❤️ <b>Избранное пока пусто.</b>\n\n"
+                    "Сохраните новое место из результатов поиска."
+                )
+            else:
+                await callback.message.edit_text(
+                    "❤️ <b>Избранное пока пусто.</b>\n\n"
+                    "Сохраните новое место из результатов поиска."
+                )
         return
 
     index = data.get("result_index", 0)
@@ -599,6 +609,27 @@ async def favorite(
         index = 0
     index = min(index, len(updated_results) - 1)
     await state.update_data(results=updated_results, result_index=index)
+
+    if from_detail and callback.message:
+        raw = updated_results[index]
+        if isinstance(raw, dict):
+            current = _venue_from_dict(raw)
+            await callback.message.delete()
+            await callback.message.answer(
+                render_venue_card(
+                    current,
+                    position=index + 1,
+                    total=len(updated_results),
+                ),
+                reply_markup=results_keyboard(
+                    current.id,
+                    can_previous=index > 0,
+                    can_next=index < len(updated_results) - 1,
+                ),
+                disable_web_page_preview=True,
+            )
+        return
+
     await _edit_current_result(callback, state)
 
 
