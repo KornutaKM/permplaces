@@ -4,7 +4,7 @@ Telegram-ассистент для поиска кафе, ресторанов, 
 
 ## Статус
 
-Версия 0.23 вводит Scenario Engine v1: существующие сценарии планируются через единый deterministic contract, а карточки сценариев объясняют «Почему подходит» только подтверждёнными или локально вычисленными фактами.
+Версия 0.24 добавляет production operations contract: безопасный SQLite backup/verify/offline restore, pre-restore safety snapshot и пошаговый deploy/rollback runbook для Docker Compose.
 
 Рабочие вертикальные сценарии:
 
@@ -65,6 +65,8 @@ Telegram-ассистент для поиска кафе, ресторанов, 
 - `/health/live` и `/health/ready` внутри контейнера;
 - Docker HEALTHCHECK, который показывает `healthy` только после runtime + SQLite initialization;
 - hardened container runtime: UID 10001, read-only root FS, `cap_drop: ALL`, `no-new-privileges`, resource limits.
+- SQLite admin CLI: `python -m app.db_admin backup|verify|restore` с fail-closed restore guard;
+- production runbook для secrets, exact-SHA deploy, backup/restore drill и application rollback: `docs/PRODUCTION.md`.
 
 ## Принцип данных
 
@@ -85,6 +87,10 @@ PermPlaces не придумывает отсутствующие факты.
 При поиске по району расстояние до пользователя не показывается и выдача сортируется по названию, потому что районный поиск не требует геолокацию пользователя.
 
 Если `opening_hours` отсутствует, невалиден или вычисляется как `unknown`, заведение не считается открытым для фильтра «Открыто сейчас». Рейтинг, отзывы, средний чек и полноценное меню OpenStreetMap обычно не предоставляет. Nearby-поиск теперь может получить рейтинг/price/menu из опционального Foursquare provider, если соответствующие поля доступны аккаунту.
+
+## Production operations
+
+Production deploy, backup, restore and rollback procedures are documented in `docs/PRODUCTION.md`. Live SQLite backups must use `python -m app.db_admin backup`; copying only the WAL-mode database file while the bot is running is not a supported backup method.
 
 ## Быстрый запуск через Docker Compose
 
@@ -207,7 +213,7 @@ Provider abstraction теперь включает deterministic aggregation и 
 1. Проверить Foursquare field entitlement на production service key и реальную полноту rating/menu/photo данных по Перми.
 2. Добавить average-check enrichment только после region-specific attribute discovery и provenance.
 3. Расширять Scenario Engine только новыми provider-backed сигналами; сценарий «На свидание» остаётся выключенным без подтверждаемой модели атмосферы.
-4. Production deployment runbook: secrets, backups, restore drill и deploy/rollback procedure.
+4. Выполнить первый production restore drill по `docs/PRODUCTION.md` и зафиксировать конкретный hosting/secret-manager choice.
 
 
 ## Overpass failover
