@@ -1,4 +1,4 @@
-from app.data import Venue
+from app.data import PhotoRef, Venue
 from app.dedup import ensure_provenance, merge_provider_results, merge_venues, same_venue
 
 
@@ -13,6 +13,7 @@ def venue(
     phone: str | None = None,
     website: str | None = None,
     menu_url: str | None = None,
+    photos: tuple[PhotoRef, ...] = (),
     rating: float | None = None,
     rating_scale: float | None = None,
     review_count: int | None = None,
@@ -30,6 +31,7 @@ def venue(
         phone=phone,
         website=website,
         menu_url=menu_url,
+        photos=photos,
         rating=rating,
         rating_scale=rating_scale,
         review_count=review_count,
@@ -208,3 +210,53 @@ def test_menu_url_is_enriched_with_provider_provenance() -> None:
     assert {
         item.field_name: item.provider for item in merged.field_sources
     }["menu_url"] == "foursquare"
+
+
+def test_photos_are_enriched_as_one_provider_backed_field() -> None:
+    primary = venue(source="osm", source_id="node/21")
+    photos = (
+        PhotoRef(
+            provider="foursquare",
+            source_id="photo-1",
+            url="https://images.example.test/original/one.jpg",
+            attribution="Powered by Foursquare",
+        ),
+    )
+    secondary = venue(
+        source="foursquare",
+        source_id="fsq-photo",
+        photos=photos,
+    )
+
+    merged = merge_venues(primary, secondary)
+
+    assert merged.photos == photos
+    assert {
+        item.field_name: item.provider for item in merged.field_sources
+    }["photos"] == "foursquare"
+
+
+def test_primary_photos_are_not_mixed_with_secondary_provider_photos() -> None:
+    primary_photos = (
+        PhotoRef(
+            provider="catalog",
+            source_id="primary-photo",
+            url="https://catalog.example.test/photo.jpg",
+            attribution="Catalog",
+        ),
+    )
+    secondary_photos = (
+        PhotoRef(
+            provider="foursquare",
+            source_id="secondary-photo",
+            url="https://images.example.test/original/two.jpg",
+            attribution="Powered by Foursquare",
+        ),
+    )
+
+    merged = merge_venues(
+        venue(source="catalog", source_id="catalog-1", photos=primary_photos),
+        venue(source="foursquare", source_id="fsq-1", photos=secondary_photos),
+    )
+
+    assert merged.photos == primary_photos

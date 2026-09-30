@@ -16,6 +16,14 @@ class FieldSource:
 
 
 @dataclass(frozen=True, slots=True)
+class PhotoRef:
+    provider: str
+    url: str
+    attribution: str
+    source_id: str | None = None
+
+
+@dataclass(frozen=True, slots=True)
 class Venue:
     id: str
     name: str
@@ -37,6 +45,7 @@ class Venue:
     phone: str | None = None
     website: str | None = None
     menu_url: str | None = None
+    photos: tuple[PhotoRef, ...] = ()
     cuisine: tuple[str, ...] = ()
     outdoor_seating: bool | None = None
     wifi: bool | None = None

@@ -4,7 +4,7 @@ Telegram-ассистент для поиска кафе, ресторанов, 
 
 ## Статус
 
-Версия 0.21 активирует provider-backed меню: кнопка «📖 Меню» появляется только при явной безопасной ссылке от провайдера; Foursquare enrichment из v0.20 сохраняется.
+Версия 0.22 добавляет visual venue cards: Foursquare photos проходят безопасную нормализацию и открываются в отдельной Telegram detail-card, не ломая навигацию результатов.
 
 Рабочие вертикальные сценарии:
 
@@ -32,6 +32,8 @@ Telegram-ассистент для поиска кафе, ресторанов, 
 - карточки с адресом, районом, opening_hours, cuisine и телефоном, когда эти поля есть в OSM;
 - безопасная кнопка 🌐 «Сайт» для provider URL с http/https;
 - provider-backed кнопка 📖 «Меню» только для явного http/https URL, без эвристик;
+- provider-backed Foursquare photos с безопасной HTTP(S) нормализацией и provenance;
+- отдельная визуальная detail-card с фото и fallback на текстовую карточку;
 - переход между результатами;
 - отправка точки заведения через Telegram Location;
 - быстрые ссылки на 2ГИС, Google Maps и OpenStreetMap из карточки маршрута;
@@ -200,9 +202,9 @@ Provider abstraction теперь включает deterministic aggregation и 
 
 ## Следующие этапы
 
-1. Проверить Foursquare field entitlement на production service key и реальную полноту rating/menu данных по Перми.
+1. Проверить Foursquare field entitlement на production service key и реальную полноту rating/menu/photo данных по Перми.
 2. Добавить average-check enrichment только после region-specific attribute discovery и provenance.
-3. Сценарий «На свидание» после появления достаточно надёжных признаков.
+3. Перейти к explainable smart scenarios, начиная со сценариев с уже подтверждаемыми признаками.
 4. Production deployment runbook: secrets, backups, restore drill и deploy/rollback procedure.
 
 
@@ -335,6 +337,7 @@ Foursquare не выполняется.
 - Foursquare rating с явной шкалой;
 - число оценок `stats.total_ratings`;
 - price tier 1–4;
+- provider-backed photos;
 - provider-backed Wi-Fi, outdoor seating и opening-state признаки.
 
 Рейтинг хранится вместе со шкалой и provenance; PermPlaces не смешивает score одного provider

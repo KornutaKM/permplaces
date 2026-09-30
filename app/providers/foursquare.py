@@ -10,7 +10,7 @@ from zoneinfo import ZoneInfo
 
 import httpx
 
-from app.data import Venue
+from app.data import PhotoRef, Venue
 from app.filters import PlaceFilters
 from app.observability import endpoint_label
 from app.providers.base import ProviderError
@@ -20,7 +20,7 @@ logger = logging.getLogger(__name__)
 _API_VERSION = "2025-06-17"
 _PERM_TIMEZONE = ZoneInfo("Asia/Yekaterinburg")
 _FIELDS = (
-    "fsq_place_id,name,latitude,longitude,location,tel,website,menu,"
+    "fsq_place_id,name,latitude,longitude,location,tel,website,menu,photos,"
     "rating,price,stats,attributes,hours"
 )
 
@@ -121,6 +121,46 @@ def _price_label(value: object) -> str | None:
     return "₽" * value
 
 
+def _photo_refs(value: object) -> tuple[PhotoRef, ...]:
+    if not isinstance(value, list):
+        return ()
+
+    photos: list[PhotoRef] = []
+    seen_urls: set[str] = set()
+    for item in value:
+        if not isinstance(item, Mapping):
+            continue
+
+        prefix = _clean_text(item.get("prefix"))
+        suffix = _clean_text(item.get("suffix"))
+        if prefix is None or suffix is None:
+            continue
+
+        url = _http_url(f"{prefix}original{suffix}")
+        if url is None or url in seen_urls:
+            continue
+
+        source_id = item.get("fsq_photo_id")
+        if not isinstance(source_id, str) or not source_id.strip():
+            source_id = item.get("id")
+        if not isinstance(source_id, str) or not source_id.strip():
+            source_id = None
+
+        photos.append(
+            PhotoRef(
+                provider="foursquare",
+                url=url,
+                attribution="Powered by Foursquare",
+                source_id=source_id.strip() if isinstance(source_id, str) else None,
+            )
+        )
+        seen_urls.add(url)
+        if len(photos) == 3:
+            break
+
+    return tuple(photos)
+
+
 class FoursquareProvider:
     def __init__(
         self,
@@ -138,7 +178,7 @@ class FoursquareProvider:
         self._headers = {
             "Accept": "application/json",
             "Authorization": f"Bearer {api_key.strip()}",
-            "User-Agent": "PermPlaces/0.21 (+https://github.com/KornutaKM/permplaces)",
+            "User-Agent": "PermPlaces/0.22 (+https://github.com/KornutaKM/permplaces)",
             "X-Places-Api-Version": _API_VERSION,
         }
         self._owns_client = client is None
@@ -280,6 +320,7 @@ class FoursquareProvider:
 
             rating = _rating(item.get("rating"))
             reviews = _review_count(item.get("stats"))
+            photos = _photo_refs(item.get("photos"))
 
             venues.append(
                 Venue(
@@ -300,6 +341,7 @@ class FoursquareProvider:
                     phone=_clean_text(item.get("tel")),
                     website=_clean_text(item.get("website")),
                     menu_url=_http_url(item.get("menu")),
+                    photos=photos,
                     outdoor_seating=outdoor_state,
                     wifi=wifi_state,
                     price_label=_price_label(item.get("price")),

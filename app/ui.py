@@ -185,6 +185,14 @@ def _safe_http_url(value: str | None) -> str | None:
     return candidate
 
 
+def primary_photo_url(venue: Venue) -> str | None:
+    for photo in venue.photos:
+        url = _safe_http_url(photo.url)
+        if url:
+            return url
+    return None
+
+
 def _twogis_source_id(venue: Venue) -> str | None:
     if venue.source == "2gis" and venue.source_id:
         return venue.source_id
@@ -284,7 +292,7 @@ def venue_keyboard(venue: Venue) -> InlineKeyboardMarkup:
             "foursquare": "🗺 Открыть в Foursquare",
         }.get(venue.source, "🗺 Открыть источник")
         rows.append([InlineKeyboardButton(text=source_label, url=source_url)])
-    rows.append([InlineKeyboardButton(text="← Назад к результатам", callback_data="results:current")])
+    rows.append([InlineKeyboardButton(text="← Закрыть карточку", callback_data="detail:close")])
     return InlineKeyboardMarkup(inline_keyboard=rows)
 
 

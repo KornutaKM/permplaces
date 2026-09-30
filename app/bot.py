@@ -6,7 +6,7 @@ from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.types import CallbackQuery, Message, ReplyKeyboardRemove
 
-from app.data import Venue
+from app.data import FieldSource, PhotoRef, SourceRef, Venue
 from app.districts import DISTRICT_BY_KEY, PERM_DISTRICTS, PERM_RELATION_ID
 from app.filters import PlaceFilters
 from app.providers.overpass import ProviderError
@@ -20,6 +20,7 @@ from app.ui import (
     districts_keyboard,
     filters_keyboard,
     home_keyboard,
+    primary_photo_url,
     render_venue_card,
     results_keyboard,
     route_keyboard,
@@ -70,10 +71,37 @@ def _filters_from_state(data: dict[str, object]) -> PlaceFilters:
 
 
 def _venue_from_dict(value: dict[str, object]) -> Venue:
-    cuisine = value.get("cuisine")
+    restored = dict(value)
+
+    cuisine = restored.get("cuisine")
     if isinstance(cuisine, list):
-        value = {**value, "cuisine": tuple(str(item) for item in cuisine)}
-    return Venue(**value)  # type: ignore[arg-type]
+        restored["cuisine"] = tuple(str(item) for item in cuisine)
+
+    source_refs = restored.get("source_refs")
+    if isinstance(source_refs, (list, tuple)):
+        restored["source_refs"] = tuple(
+            SourceRef(**item)
+            for item in source_refs
+            if isinstance(item, dict)
+        )
+
+    field_sources = restored.get("field_sources")
+    if isinstance(field_sources, (list, tuple)):
+        restored["field_sources"] = tuple(
+            FieldSource(**item)
+            for item in field_sources
+            if isinstance(item, dict)
+        )
+
+    photos = restored.get("photos")
+    if isinstance(photos, (list, tuple)):
+        restored["photos"] = tuple(
+            PhotoRef(**item)
+            for item in photos
+            if isinstance(item, dict)
+        )
+
+    return Venue(**restored)  # type: ignore[arg-type]
 
 
 def _find_result(results: list[dict[str, object]], venue_id: str) -> Venue | None:
@@ -496,11 +524,27 @@ async def venue_detail(callback: CallbackQuery, state: FSMContext) -> None:
         await callback.message.edit_text("Карточка больше не доступна. Запустите поиск снова.")
         return
 
-    await callback.message.edit_text(
-        render_venue_card(venue),
-        reply_markup=venue_keyboard(venue),
-        disable_web_page_preview=True,
-    )
+    card = render_venue_card(venue)
+    photo_url = primary_photo_url(venue)
+    if photo_url and len(card) <= 1024:
+        await callback.message.answer_photo(
+            photo=photo_url,
+            caption=card,
+            reply_markup=venue_keyboard(venue),
+        )
+    else:
+        await callback.message.answer(
+            card,
+            reply_markup=venue_keyboard(venue),
+            disable_web_page_preview=True,
+        )
+
+
+@router.callback_query(F.data == "detail:close")
+async def close_venue_detail(callback: CallbackQuery) -> None:
+    await callback.answer()
+    if callback.message:
+        await callback.message.delete()
 
 
 @router.callback_query(F.data.startswith("favorite:"))

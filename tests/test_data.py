@@ -1,8 +1,9 @@
 from urllib.parse import parse_qs, urlsplit
 
-from app.data import SourceRef, Venue
+from app.data import PhotoRef, SourceRef, Venue
 from app.ui import (
     filters_keyboard,
+    primary_photo_url,
     render_venue_card,
     route_keyboard,
     share_venue_url,
@@ -402,3 +403,54 @@ def test_venue_keyboard_shows_only_safe_provider_menu_url() -> None:
     assert safe_menu[0].callback_data is None
     assert unsafe_menu == []
     assert missing_menu == []
+
+
+def test_primary_photo_url_uses_first_safe_provider_photo() -> None:
+    venue = Venue(
+        id="foursquare:photo",
+        name="Photo place",
+        category="cafe",
+        category_label="Кофейня",
+        latitude=58.01,
+        longitude=56.25,
+        source="foursquare",
+        source_id="photo",
+        photos=(
+            PhotoRef(
+                provider="foursquare",
+                source_id="unsafe",
+                url="javascript:alert(1)",
+                attribution="Powered by Foursquare",
+            ),
+            PhotoRef(
+                provider="foursquare",
+                source_id="safe",
+                url="https://images.example.test/original/safe.jpg",
+                attribution="Powered by Foursquare",
+            ),
+        ),
+    )
+
+    assert primary_photo_url(venue) == "https://images.example.test/original/safe.jpg"
+
+
+def test_venue_detail_keyboard_closes_without_mutating_results_message() -> None:
+    venue = Venue(
+        id="osm:node/detail",
+        name="Detail",
+        category="cafe",
+        category_label="Кофейня",
+        latitude=58.01,
+        longitude=56.25,
+        source="osm",
+        source_id="node/detail",
+    )
+
+    close_button = next(
+        button
+        for row in venue_keyboard(venue).inline_keyboard
+        for button in row
+        if button.text == "← Закрыть карточку"
+    )
+
+    assert close_button.callback_data == "detail:close"
