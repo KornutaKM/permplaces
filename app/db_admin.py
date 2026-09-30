@@ -70,15 +70,17 @@ def backup_database(
     temporary_path = Path(temporary_name)
 
     try:
-        with closing(_read_only_connection(source_path)) as source_connection:
-            with closing(sqlite3.connect(temporary_path)) as backup_connection:
-                source_connection.backup(backup_connection)
-                result = _quick_check(backup_connection)
-                if result != ("ok",):
-                    details = "; ".join(result) if result else "no quick_check result"
-                    raise DatabaseAdminError(
-                        f"Backup quick_check failed: {details}"
-                    )
+        with (
+            closing(_read_only_connection(source_path)) as source_connection,
+            closing(sqlite3.connect(temporary_path)) as backup_connection,
+        ):
+            source_connection.backup(backup_connection)
+            result = _quick_check(backup_connection)
+            if result != ("ok",):
+                details = "; ".join(result) if result else "no quick_check result"
+                raise DatabaseAdminError(
+                    f"Backup quick_check failed: {details}"
+                )
 
         os.replace(temporary_path, destination_path)
     except Exception:
