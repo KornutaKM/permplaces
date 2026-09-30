@@ -517,7 +517,6 @@ async def venue_detail(callback: CallbackQuery, state: FSMContext) -> None:
     if not isinstance(results, list):
         return
 
-    from_detail = callback.data.startswith("detail_favorite:")
     venue_id = callback.data.split(":", 1)[1]
     dict_results = [item for item in results if isinstance(item, dict)]
     venue = _find_result(dict_results, venue_id)
@@ -565,6 +564,7 @@ async def favorite(
         await callback.answer("Карточка устарела. Запустите поиск снова.")
         return
 
+    from_detail = callback.data.startswith("detail_favorite:")
     venue_id = callback.data.split(":", 1)[1]
     dict_results = [item for item in results if isinstance(item, dict)]
     venue = _find_result(dict_results, venue_id)
