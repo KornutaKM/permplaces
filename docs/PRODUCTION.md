@@ -135,6 +135,10 @@ docker compose cp \
 
 The same SQLite backup also contains community ratings and the persistent provider budget counters.
 
+User-triggered `/mydata` deletion removes live favorites and ratings from the application
+database, but it does not rewrite older backup files. Backup retention/deletion remains an
+operator responsibility; see `docs/PRIVACY.md`.
+
 Keep copied backups outside the Docker host as part of the operator's normal backup policy.
 The repository intentionally does not prescribe a storage vendor.
 
