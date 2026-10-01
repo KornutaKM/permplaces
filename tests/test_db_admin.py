@@ -9,7 +9,6 @@ from app.database import initialize_database
 from app.db_admin import (
     DatabaseAdminError,
     audit_database,
-    main as db_admin_main,
     backup_database,
     inspect_database,
     preflight_database,
@@ -17,6 +16,7 @@ from app.db_admin import (
     restore_database,
     verify_database,
 )
+from app.db_admin import main as db_admin_main
 
 
 def _create_database(path: Path, value: str) -> None:
