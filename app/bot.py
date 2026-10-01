@@ -966,7 +966,21 @@ async def remove_favorite_note(
         asdict(updated_venue) if item.get("id") == venue_id else item
         for item in dict_results
     ]
-    await state.update_data(results=updated_results, note_venue_id=None)
+    all_results_raw = data.get("favorite_all_results")
+    updated_all_results = (
+        [
+            asdict(updated_venue) if item.get("id") == venue_id else item
+            for item in all_results_raw
+            if isinstance(item, dict)
+        ]
+        if isinstance(all_results_raw, list)
+        else updated_results
+    )
+    await state.update_data(
+        results=updated_results,
+        favorite_all_results=updated_all_results,
+        note_venue_id=None,
+    )
     await state.set_state(None)
     await callback.answer("Заметка удалена" if removed else "Заметки уже нет")
     if callback.message:
@@ -1043,7 +1057,21 @@ async def favorite_note_text(
         asdict(updated_venue) if item.get("id") == venue_id else item
         for item in dict_results
     ]
-    await state.update_data(results=updated_results, note_venue_id=None)
+    all_results_raw = data.get("favorite_all_results")
+    updated_all_results = (
+        [
+            asdict(updated_venue) if item.get("id") == venue_id else item
+            for item in all_results_raw
+            if isinstance(item, dict)
+        ]
+        if isinstance(all_results_raw, list)
+        else updated_results
+    )
+    await state.update_data(
+        results=updated_results,
+        favorite_all_results=updated_all_results,
+        note_venue_id=None,
+    )
     await state.set_state(None)
     await message.answer(
         "📝 Заметка сохранена. Она будет видна только в вашем избранном."
@@ -1168,6 +1196,10 @@ async def favorite_tag_toggle(
         if active_filter in FAVORITE_TAG_LABELS
         else updated_all_results
     )
+    if not filtered_results and active_filter in FAVORITE_TAG_LABELS:
+        active_filter = None
+        filtered_results = updated_all_results
+
     index = data.get("result_index", 0)
     if not isinstance(index, int):
         index = 0
@@ -1176,6 +1208,7 @@ async def favorite_tag_toggle(
         favorite_all_results=updated_all_results,
         results=filtered_results,
         result_index=index,
+        favorite_filter=active_filter,
     )
 
     await callback.answer(
