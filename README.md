@@ -4,7 +4,7 @@ Telegram-ассистент для поиска кафе, ресторанов, 
 
 ## Статус
 
-Версия 0.26 добавляет capability-aware provider routing, безопасную `/providers` диагностику и conservative dedup v2 для OSM + Geoapify с усиленным provenance.
+Версия 0.27 добавляет бесплатные оценки пользователей PermPlaces: 1–5, SQLite persistence, alias-aware aggregation для merged venues и отдельное отображение от внешних provider ratings.
 
 Рабочие вертикальные сценарии:
 
@@ -53,6 +53,8 @@ Telegram-ассистент для поиска кафе, ресторанов, 
 - configurable graceful failover: fallback endpoint используется только после `ProviderError` primary;
 - runtime-логи provider latency, cache hit/miss/coalescing/eviction и failover без координат пользователя;
 - ❤️ постоянное избранное в SQLite, изолированное по Telegram user ID;
+- ⭐ собственные оценки пользователей PermPlaces 1–5 без платного rating API;
+- community rating агрегируется по provider aliases без двойного учёта одного пользователя;
 - Ruff + pytest;
 - Docker Compose build/config/smoke CI;
 - multi-provider aggregation с capability-aware routing: неподходящий provider не вызывается;
@@ -79,7 +81,7 @@ Telegram-ассистент для поиска кафе, ресторанов, 
 
 PermPlaces не придумывает отсутствующие факты.
 
-Если OpenStreetMap не содержит рейтинг, средний чек, адрес, часы работы или меню, бот не подставляет их самостоятельно.
+Если OpenStreetMap не содержит рейтинг, средний чек, адрес, часы работы или меню, бот не подставляет их самостоятельно. Собственная оценка пользователей PermPlaces показывается отдельно и никогда не маскируется под provider rating.
 
 Каждая OSM-карточка сохраняет:
 
@@ -129,7 +131,7 @@ docker compose ps
 docker compose logs -f bot
 ```
 
-SQLite хранится в Docker named volume `permplaces-data` и переживает пересоздание контейнера. `docker compose down -v` удалит этот volume вместе с локальным избранным.
+SQLite хранится в Docker named volume `permplaces-data` и переживает пересоздание контейнера. `docker compose down -v` удалит этот volume вместе с локальным избранным и оценками пользователей.
 
 Остановка:
 
@@ -222,7 +224,7 @@ OverpassProvider + optional GeoapifyProvider + optional paid catalog providers
 OpenStreetMap + Geoapify Places + optional 2GIS/Foursquare
 ```
 
-Provider abstraction теперь включает deterministic aggregation, capability routing и provenance. Подробный контракт источников и dedup: `docs/PROVIDERS.md`.
+Provider abstraction теперь включает deterministic aggregation, capability routing и provenance. Community ratings остаются отдельным локальным слоем после provider search. Контракты: `docs/PROVIDERS.md` и `docs/COMMUNITY_RATINGS.md`.
 
 ## Следующие этапы
 
