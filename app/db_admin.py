@@ -10,9 +10,15 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
 
-from app.database import favorite_identity_keys_from_payload
+from app.database import (
+    REQUIRED_INDEXES,
+    REQUIRED_TABLE_COLUMNS,
+    SCHEMA_VERSION,
+    favorite_identity_keys_from_payload,
+)
 from app.notes import MAX_PERSONAL_NOTE_LENGTH
 from app.tags import FAVORITE_TAG_KEYS
+from app.version import APP_VERSION
 
 
 class DatabaseAdminError(RuntimeError):
@@ -32,6 +38,34 @@ class DatabaseInspection:
 
 
 @dataclass(frozen=True, slots=True)
+@dataclass(frozen=True, slots=True)
+class DatabasePreflight:
+    path: Path
+    app_version: str
+    expected_schema_version: int
+    inspection: DatabaseInspection
+    missing_tables: tuple[str, ...]
+    missing_columns: tuple[str, ...]
+    missing_indexes: tuple[str, ...]
+    audit: DatabaseAudit | None
+
+    @property
+    def status(self) -> str:
+        if self.inspection.schema_version > self.expected_schema_version:
+            return "schema_newer"
+        if self.inspection.schema_version < self.expected_schema_version:
+            return "migration_required"
+        if self.missing_tables or self.missing_columns or self.missing_indexes:
+            return "schema_drift"
+        if self.audit is None or not self.audit.consistent:
+            return "data_drift"
+        return "ok"
+
+    @property
+    def ready(self) -> bool:
+        return self.status == "ok"
+
+
 class DatabaseAudit:
     path: Path
     favorites: int
@@ -144,6 +178,90 @@ def inspect_database(path: str | Path) -> DatabaseInspection:
         raise DatabaseAdminError(
             f"SQLite inspection failed for {database_path}: {exc}"
         ) from exc
+
+
+def _existing_schema_objects(
+    connection: sqlite3.Connection,
+) -> tuple[set[str], set[str]]:
+    table_rows = connection.execute(
+        "SELECT name FROM sqlite_master WHERE type = 'table'"
+    ).fetchall()
+    index_rows = connection.execute(
+        "SELECT name FROM sqlite_master WHERE type = 'index'"
+    ).fetchall()
+    tables = {
+        str(row[0])
+        for row in table_rows
+        if row and isinstance(row[0], str)
+    }
+    indexes = {
+        str(row[0])
+        for row in index_rows
+        if row and isinstance(row[0], str)
+    }
+    return tables, indexes
+
+
+def _table_columns_sync(
+    connection: sqlite3.Connection,
+    table_name: str,
+) -> set[str]:
+    rows = connection.execute(
+        f'PRAGMA table_info("{table_name}")'
+    ).fetchall()
+    return {
+        str(row[1])
+        for row in rows
+        if len(row) > 1 and isinstance(row[1], str)
+    }
+
+
+def preflight_database(path: str | Path) -> DatabasePreflight:
+    inspection = inspect_database(path)
+    database_path = inspection.path
+
+    try:
+        with closing(_read_only_connection(database_path)) as connection:
+            tables, indexes = _existing_schema_objects(connection)
+            missing_tables = tuple(
+                sorted(set(REQUIRED_TABLE_COLUMNS) - tables)
+            )
+
+            missing_columns: list[str] = []
+            for table_name, required_columns in REQUIRED_TABLE_COLUMNS.items():
+                if table_name not in tables:
+                    continue
+                actual_columns = _table_columns_sync(connection, table_name)
+                missing_columns.extend(
+                    f"{table_name}.{column_name}"
+                    for column_name in sorted(required_columns - actual_columns)
+                )
+
+            missing_indexes = tuple(
+                sorted(REQUIRED_INDEXES - indexes)
+            )
+    except sqlite3.Error as exc:
+        raise DatabaseAdminError(
+            f"SQLite preflight failed for {database_path}: {exc}"
+        ) from exc
+
+    can_audit = (
+        inspection.schema_version == SCHEMA_VERSION
+        and not missing_tables
+        and not missing_columns
+    )
+    audit = audit_database(database_path) if can_audit else None
+
+    return DatabasePreflight(
+        path=database_path,
+        app_version=APP_VERSION,
+        expected_schema_version=SCHEMA_VERSION,
+        inspection=inspection,
+        missing_tables=missing_tables,
+        missing_columns=tuple(sorted(missing_columns)),
+        missing_indexes=missing_indexes,
+        audit=audit,
+    )
 
 
 def _favorite_alias_sets(
@@ -493,6 +611,12 @@ def _parser() -> argparse.ArgumentParser:
     )
     audit.add_argument("--database", default=_database_default())
 
+    preflight = subparsers.add_parser(
+        "preflight",
+        help="Run read-only release checks for SQLite schema and application data.",
+    )
+    preflight.add_argument("--database", default=_database_default())
+
     repair = subparsers.add_parser(
         "repair-aliases",
         help="Rebuild the derived favorite identity alias index offline.",
@@ -551,6 +675,29 @@ def main() -> int:
                 f"provider_budget_rows={inspection.provider_budget_rows}"
             )
             return 0
+
+        if args.command == "preflight":
+            preflight = preflight_database(args.database)
+            audit = preflight.audit
+            print(
+                f"preflight_{preflight.status} "
+                f"path={preflight.path} "
+                f"app_version={preflight.app_version} "
+                f"expected_schema_version={preflight.expected_schema_version} "
+                f"schema_version={preflight.inspection.schema_version} "
+                f"missing_tables={','.join(preflight.missing_tables) or '-'} "
+                f"missing_columns={','.join(preflight.missing_columns) or '-'} "
+                f"missing_indexes={','.join(preflight.missing_indexes) or '-'} "
+                f"audit_consistent={audit.consistent if audit is not None else None} "
+                f"missing_aliases={audit.missing_aliases if audit is not None else None} "
+                f"unexpected_aliases={audit.unexpected_aliases if audit is not None else None} "
+                f"orphan_aliases={audit.orphan_aliases if audit is not None else None} "
+                f"orphan_notes={audit.orphan_notes if audit is not None else None} "
+                f"invalid_notes={audit.invalid_notes if audit is not None else None} "
+                f"orphan_tags={audit.orphan_tags if audit is not None else None} "
+                f"invalid_tags={audit.invalid_tags if audit is not None else None}"
+            )
+            return 0 if preflight.ready else 3
 
         if args.command == "audit":
             audit = audit_database(args.database)
