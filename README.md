@@ -4,7 +4,7 @@ Telegram-ассистент для поиска кафе, ресторанов, 
 
 ## Статус
 
-Версия 0.27 добавляет бесплатные оценки пользователей PermPlaces: 1–5, SQLite persistence, alias-aware aggregation для merged venues и отдельное отображение от внешних provider ratings.
+Версия 0.28 добавляет persistent safety-budget для бесплатного Geoapify и community ratings v2: просмотр, изменение и удаление своей оценки плюс batched aggregation без N+1 запросов.
 
 Рабочие вертикальные сценарии:
 
@@ -55,6 +55,8 @@ Telegram-ассистент для поиска кафе, ресторанов, 
 - ❤️ постоянное избранное в SQLite, изолированное по Telegram user ID;
 - ⭐ собственные оценки пользователей PermPlaces 1–5 без платного rating API;
 - community rating агрегируется по provider aliases без двойного учёта одного пользователя;
+- пользователь видит свою текущую оценку, может изменить или удалить её;
+- community aggregates для списка мест читаются batch-запросом вместо N+1 SQLite queries;
 - Ruff + pytest;
 - Docker Compose build/config/smoke CI;
 - multi-provider aggregation с capability-aware routing: неподходящий provider не вызывается;
@@ -64,6 +66,7 @@ Telegram-ассистент для поиска кафе, ресторанов, 
 - source-level и field-level provenance для объединённых карточек;
 - рекомендуемый бесплатный Geoapify Places provider для nearby-поиска при заданном `GEOAPIFY_API_KEY`;
 - Geoapify-запрос ограничен 20 результатами, чтобы один provider-call укладывался в один Places credit по текущей публичной модели Geoapify;
+- persistent app-side Geoapify budget guard по UTC-дню: по умолчанию 2500 upstream calls, чтобы оставлять запас относительно free quota;
 - Wi-Fi через Geoapify включается только по provider condition `internet_access`; неподдерживаемые filter-сигналы fail-closed;
 - обязательная `Powered by Geoapify` + OpenStreetMap attribution для карточек с Geoapify data;
 - опциональный 2GIS Places provider для nearby-поиска при заданном `TWOGIS_API_KEY`;
@@ -177,6 +180,7 @@ PROVIDER_CACHE_MAX_ENTRIES=256
 GEOAPIFY_API_KEY=
 GEOAPIFY_URL=https://api.geoapify.com/v2/places
 GEOAPIFY_TIMEOUT_SECONDS=10
+GEOAPIFY_DAILY_REQUEST_BUDGET=2500
 
 # Optional: no 2GIS requests are made while this is empty.
 TWOGIS_API_KEY=
@@ -228,7 +232,7 @@ Provider abstraction теперь включает deterministic aggregation, ca
 
 ## Следующие этапы
 
-1. Получить бесплатный Geoapify API key и выполнить live-проверку покрытия кафе/ресторанов по Перми через `/providers` и реальный nearby-поиск без включения платных провайдеров.
+1. Получить бесплатный Geoapify API key и выполнить live-проверку покрытия кафе/ресторанов по Перми через `/providers` и реальный nearby-поиск; budget guard не должен превышать настроенный UTC-day лимит.
 2. Добавить Place Details enrichment только после измерения credit-бюджета и только для полей с явным provenance.
 3. Добавить average-check enrichment только после region-specific attribute discovery и provenance.
 4. Расширять Scenario Engine только новыми provider-backed сигналами; сценарий «На свидание» остаётся выключенным без подтверждаемой модели атмосферы.
