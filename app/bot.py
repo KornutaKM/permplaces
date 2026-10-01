@@ -7,12 +7,12 @@ from aiogram.exceptions import TelegramBadRequest
 from aiogram.filters import Command, CommandStart
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
-from aiogram.types import CallbackQuery, Message, ReplyKeyboardRemove
+from aiogram.types import BufferedInputFile, CallbackQuery, Message, ReplyKeyboardRemove
 
 from app.data import FieldSource, PhotoRef, SourceRef, Venue
 from app.districts import DISTRICT_BY_KEY, PERM_DISTRICTS, PERM_RELATION_ID
 from app.filters import PlaceFilters
-from app.privacy import UserDataRepository
+from app.privacy import USER_DATA_EXPORT_FILENAME, UserDataRepository
 from app.providers.budget import SQLiteDailyRequestBudget, render_daily_budget_status
 from app.providers.capabilities import ProviderStatus, render_provider_statuses
 from app.providers.overpass import ProviderError
@@ -293,6 +293,32 @@ async def my_data(
         "и ваших community-оценок.",
         reply_markup=mydata_keyboard(
             has_persistent_data=summary.total_rows > 0,
+        ),
+    )
+
+
+@router.callback_query(F.data == "privacy:export")
+async def export_my_data(
+    callback: CallbackQuery,
+    user_data_repository: UserDataRepository,
+) -> None:
+    await callback.answer("Готовлю экспорт…")
+    if callback.message is None:
+        return
+
+    export = await user_data_repository.export_for_user(
+        user_id=callback.from_user.id,
+    )
+    await callback.message.answer_document(
+        BufferedInputFile(
+            export.content,
+            filename=USER_DATA_EXPORT_FILENAME,
+        ),
+        caption=(
+            "<b>Экспорт данных PermPlaces</b>\n"
+            f"❤️ Избранное: {export.favorites}\n"
+            f"⭐ Оценки: {export.ratings}\n\n"
+            "Файл не содержит Telegram user ID, API-ключей или истории геолокации."
         ),
     )
 
