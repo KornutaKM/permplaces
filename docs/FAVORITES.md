@@ -97,6 +97,16 @@ Facets compose with personal-tag filtering and local sort. Text search keeps its
 ordering and clears the active facets when a new successful query starts. See
 `docs/FAVORITE_FACETS.md`.
 
+## Local comparison
+
+Two favorites from the current loaded set can be compared without provider requests. Comparison
+uses saved snapshot fields plus the user's local tag labels, keeps missing values unknown and never
+produces a winner or synthetic score.
+
+Distance and saved open-now/open-late booleans are deliberately excluded because they are tied to
+an earlier search/time context. Provider ratings are shown only with an explicit saved scale and are
+not normalized across providers. See `docs/FAVORITE_COMPARISON.md`.
+
 ## Safety
 
 Alias matching is scoped by Telegram user ID. Two different users never affect each other's
