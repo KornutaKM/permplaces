@@ -5,8 +5,9 @@ from time import time_ns
 
 import aiosqlite
 
-from app.data import SourceRef, Venue
+from app.data import Venue
 from app.database import initialize_database
+from app.identity import canonical_venue_key, venue_identity_keys
 
 
 @dataclass(frozen=True, slots=True)
@@ -15,36 +16,12 @@ class CommunityRatingSummary:
     count: int
 
 
-def _rating_key(provider: str, source_id: str) -> str:
-    return f"{provider}:{source_id}"
-
-
 def venue_rating_keys(venue: Venue) -> tuple[str, ...]:
-    refs = venue.source_refs or (
-        SourceRef(
-            provider=venue.source,
-            source_id=venue.source_id,
-            source_url=venue.source_url,
-        ),
-    )
-
-    keys: list[str] = [_rating_key(venue.source, venue.source_id)]
-    keys.extend(_rating_key(ref.provider, ref.source_id) for ref in refs)
-
-    unique: list[str] = []
-    seen: set[str] = set()
-    for key in keys:
-        if key not in seen:
-            unique.append(key)
-            seen.add(key)
-    return tuple(unique)
+    return venue_identity_keys(venue)
 
 
 def canonical_rating_key(venue: Venue) -> str:
-    for ref in venue.source_refs:
-        if ref.provider == "osm":
-            return _rating_key(ref.provider, ref.source_id)
-    return _rating_key(venue.source, venue.source_id)
+    return canonical_venue_key(venue)
 
 
 def _summary_from_scores(scores: dict[int, int]) -> CommunityRatingSummary:
