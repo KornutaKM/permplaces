@@ -11,6 +11,10 @@ from aiogram.types import BufferedInputFile, CallbackQuery, Message, ReplyKeyboa
 
 from app.data import FieldSource, PhotoRef, SourceRef, Venue
 from app.districts import DISTRICT_BY_KEY, PERM_DISTRICTS, PERM_RELATION_ID
+from app.favorite_search import (
+    MAX_FAVORITE_SEARCH_LENGTH,
+    search_favorites,
+)
 from app.filters import PlaceFilters
 from app.notes import MAX_PERSONAL_NOTE_LENGTH, NotesRepository
 from app.privacy import USER_DATA_EXPORT_FILENAME, UserDataRepository
@@ -39,6 +43,7 @@ from app.ui import (
     districts_keyboard,
     favorite_filter_keyboard,
     favorite_note_keyboard,
+    favorite_search_keyboard,
     favorite_tags_keyboard,
     filters_keyboard,
     home_keyboard,
@@ -61,6 +66,10 @@ class SearchState(StatesGroup):
 
 class FavoriteNoteState(StatesGroup):
     awaiting_text = State()
+
+
+class FavoriteSearchState(StatesGroup):
+    awaiting_query = State()
 
 
 WELCOME = """<b>Привет! 👋
@@ -214,6 +223,52 @@ def _render_result_card(
     return "\n\n".join(parts)
 
 
+def _favorite_view_results(
+    data: dict[str, object],
+    all_results: list[dict[str, object]],
+) -> list[dict[str, object]]:
+    venues = [_venue_from_dict(item) for item in all_results]
+
+    query = data.get("favorite_search_query")
+    if isinstance(query, str) and query.strip():
+        return [asdict(venue) for venue in search_favorites(venues, query)]
+
+    active_tag = data.get("favorite_filter")
+    if isinstance(active_tag, str) and active_tag in FAVORITE_TAG_LABELS:
+        return [
+            asdict(venue)
+            for venue in venues
+            if active_tag in venue.personal_tags
+        ]
+
+    return [asdict(venue) for venue in venues]
+
+
+def _coherent_favorite_view(
+    data: dict[str, object],
+    all_results: list[dict[str, object]],
+) -> tuple[list[dict[str, object]], str | None, str | None]:
+    results = _favorite_view_results(data, all_results)
+    favorite_filter = (
+        data.get("favorite_filter")
+        if isinstance(data.get("favorite_filter"), str)
+        else None
+    )
+    favorite_search_query = (
+        data.get("favorite_search_query")
+        if isinstance(data.get("favorite_search_query"), str)
+        else None
+    )
+
+    if results or not all_results:
+        return results, favorite_filter, favorite_search_query
+
+    reset_data = dict(data)
+    reset_data["favorite_filter"] = None
+    reset_data["favorite_search_query"] = None
+    return _favorite_view_results(reset_data, all_results), None, None
+
+
 async def _edit_current_result(callback: CallbackQuery, state: FSMContext) -> None:
     if not callback.message:
         return
@@ -237,13 +292,21 @@ async def _edit_current_result(callback: CallbackQuery, state: FSMContext) -> No
 
     venue = _venue_from_dict(raw)
     scenario_name = data.get("result_scenario")
+    card = _render_result_card(
+        venue,
+        position=index + 1,
+        total=len(results),
+        scenario_name=scenario_name if isinstance(scenario_name, str) else None,
+    )
+    search_query = data.get("favorite_search_query")
+    if data.get("category") == "favorites" and isinstance(search_query, str):
+        card = (
+            f"🔎 <b>Поиск в избранном:</b> {escape(search_query)}\n\n"
+            + card
+        )
+
     await callback.message.edit_text(
-        _render_result_card(
-            venue,
-            position=index + 1,
-            total=len(results),
-            scenario_name=scenario_name if isinstance(scenario_name, str) else None,
-        ),
+        card,
         reply_markup=results_keyboard(
             venue.id,
             can_previous=index > 0,
@@ -253,6 +316,10 @@ async def _edit_current_result(callback: CallbackQuery, state: FSMContext) -> No
                 data.get("favorite_filter")
                 if isinstance(data.get("favorite_filter"), str)
                 else None
+            ),
+            favorite_search_active=(
+                data.get("category") == "favorites"
+                and isinstance(search_query, str)
             ),
         ),
         disable_web_page_preview=True,
@@ -508,7 +575,6 @@ async def text_search(
             venue.id,
             can_previous=False,
             can_next=len(venues) > 1,
-            favorites_mode=True,
         ),
         disable_web_page_preview=True,
     )
@@ -553,6 +619,7 @@ async def favorites(
         results=all_results,
         favorite_all_results=all_results,
         favorite_filter=None,
+        favorite_search_query=None,
         result_index=0,
         category="favorites",
         result_scenario=None,
@@ -565,6 +632,7 @@ async def favorites(
             venue.id,
             can_previous=False,
             can_next=len(venues) > 1,
+            favorites_mode=True,
         ),
         disable_web_page_preview=True,
     )
@@ -809,11 +877,6 @@ async def favorite(
     if saved or data.get("category") != "favorites":
         return
 
-    updated_results = [
-        item
-        for item in dict_results
-        if item.get("id") != venue_id
-    ]
     all_results_raw = data.get("favorite_all_results")
     all_results = (
         [item for item in all_results_raw if isinstance(item, dict)]
@@ -825,10 +888,12 @@ async def favorite(
         for item in all_results
         if item.get("id") != venue_id
     ]
-    if not updated_results:
+    if not updated_all_results:
         await state.update_data(
             results=[],
-            favorite_all_results=updated_all_results,
+            favorite_all_results=[],
+            favorite_filter=None,
+            favorite_search_query=None,
             result_index=0,
         )
         if callback.message:
@@ -845,6 +910,12 @@ async def favorite(
                 )
         return
 
+    (
+        updated_results,
+        favorite_filter,
+        favorite_search_query,
+    ) = _coherent_favorite_view(data, updated_all_results)
+
     index = data.get("result_index", 0)
     if not isinstance(index, int):
         index = 0
@@ -852,6 +923,8 @@ async def favorite(
     await state.update_data(
         results=updated_results,
         favorite_all_results=updated_all_results,
+        favorite_filter=favorite_filter,
+        favorite_search_query=favorite_search_query,
         result_index=index,
     )
 
@@ -872,9 +945,13 @@ async def favorite(
                     can_next=index < len(updated_results) - 1,
                     favorites_mode=True,
                     active_favorite_tag=(
-                        data.get("favorite_filter")
-                        if isinstance(data.get("favorite_filter"), str)
+                        favorite_filter
+                        if isinstance(favorite_filter, str)
                         else None
+                    ),
+                    favorite_search_active=isinstance(
+                        favorite_search_query,
+                        str,
                     ),
                 ),
                 disable_web_page_preview=True,
@@ -976,9 +1053,17 @@ async def remove_favorite_note(
         if isinstance(all_results_raw, list)
         else updated_results
     )
+    (
+        updated_results,
+        favorite_filter,
+        favorite_search_query,
+    ) = _coherent_favorite_view(data, updated_all_results)
     await state.update_data(
         results=updated_results,
         favorite_all_results=updated_all_results,
+        favorite_filter=favorite_filter,
+        favorite_search_query=favorite_search_query,
+        result_index=0,
         note_venue_id=None,
     )
     await state.set_state(None)
@@ -1067,9 +1152,17 @@ async def favorite_note_text(
         if isinstance(all_results_raw, list)
         else updated_results
     )
+    (
+        updated_results,
+        favorite_filter,
+        favorite_search_query,
+    ) = _coherent_favorite_view(data, updated_all_results)
     await state.update_data(
         results=updated_results,
         favorite_all_results=updated_all_results,
+        favorite_filter=favorite_filter,
+        favorite_search_query=favorite_search_query,
+        result_index=0,
         note_venue_id=None,
     )
     await state.set_state(None)
@@ -1182,23 +1275,11 @@ async def favorite_tag_toggle(
         for item in all_results
     ]
 
-    active_filter = (
-        data.get("favorite_filter")
-        if isinstance(data.get("favorite_filter"), str)
-        else None
-    )
-    filtered_results = (
-        [
-            item
-            for item in updated_all_results
-            if active_filter in tuple(item.get("personal_tags", ()))
-        ]
-        if active_filter in FAVORITE_TAG_LABELS
-        else updated_all_results
-    )
-    if not filtered_results and active_filter in FAVORITE_TAG_LABELS:
-        active_filter = None
-        filtered_results = updated_all_results
+    (
+        filtered_results,
+        active_filter,
+        active_search_query,
+    ) = _coherent_favorite_view(data, updated_all_results)
 
     index = data.get("result_index", 0)
     if not isinstance(index, int):
@@ -1209,6 +1290,7 @@ async def favorite_tag_toggle(
         results=filtered_results,
         result_index=index,
         favorite_filter=active_filter,
+        favorite_search_query=active_search_query,
     )
 
     await callback.answer(
@@ -1302,6 +1384,7 @@ async def favorite_filter_selected(
         results=filtered,
         result_index=0,
         favorite_filter=active,
+        favorite_search_query=None,
     )
     await callback.answer(
         "Показаны все избранные"
@@ -1309,6 +1392,134 @@ async def favorite_filter_selected(
         else f"Фильтр: {FAVORITE_TAG_LABELS[active]}"
     )
     await _edit_current_result(callback, state)
+
+
+@router.callback_query(F.data == "fs:start")
+async def favorite_search_start(
+    callback: CallbackQuery,
+    state: FSMContext,
+) -> None:
+    await callback.answer()
+    if not callback.message:
+        return
+
+    data = await state.get_data()
+    all_results = data.get("favorite_all_results")
+    if data.get("category") != "favorites" or not isinstance(all_results, list):
+        await callback.message.answer(
+            "Поиск доступен только для актуального списка избранного."
+        )
+        return
+
+    await state.set_state(FavoriteSearchState.awaiting_query)
+    await callback.message.answer(
+        "<b>Поиск в избранном</b>\n\n"
+        "Введите название, адрес, категорию, текст вашей заметки "
+        "или личную метку. Поиск выполняется только локально.",
+        reply_markup=favorite_search_keyboard(),
+    )
+
+
+@router.callback_query(F.data == "fs:cancel")
+async def favorite_search_cancel(
+    callback: CallbackQuery,
+    state: FSMContext,
+) -> None:
+    await state.set_state(None)
+    await callback.answer("Поиск отменён")
+    if callback.message:
+        await callback.message.delete()
+
+
+@router.callback_query(F.data == "fs:clear")
+async def favorite_search_clear(
+    callback: CallbackQuery,
+    state: FSMContext,
+) -> None:
+    data = await state.get_data()
+    all_results_raw = data.get("favorite_all_results")
+    if data.get("category") != "favorites" or not isinstance(all_results_raw, list):
+        await callback.answer("Список избранного устарел.")
+        return
+
+    all_results = [
+        item
+        for item in all_results_raw
+        if isinstance(item, dict)
+    ]
+    await state.set_state(None)
+    await state.update_data(
+        results=all_results,
+        result_index=0,
+        favorite_filter=None,
+        favorite_search_query=None,
+    )
+    await callback.answer("Поиск сброшен")
+    await _edit_current_result(callback, state)
+
+
+@router.message(FavoriteSearchState.awaiting_query, F.text)
+async def favorite_search_text(
+    message: Message,
+    state: FSMContext,
+) -> None:
+    query = (message.text or "").strip()
+    if not query:
+        await message.answer("Введите непустой текст для поиска.")
+        return
+    if len(query) > MAX_FAVORITE_SEARCH_LENGTH:
+        await message.answer(
+            f"Запрос слишком длинный. Максимум {MAX_FAVORITE_SEARCH_LENGTH} символов."
+        )
+        return
+
+    data = await state.get_data()
+    all_results_raw = data.get("favorite_all_results")
+    if data.get("category") != "favorites" or not isinstance(all_results_raw, list):
+        await state.set_state(None)
+        await message.answer("Список избранного устарел. Откройте его снова.")
+        return
+
+    all_results = [
+        item
+        for item in all_results_raw
+        if isinstance(item, dict)
+    ]
+    venues = [_venue_from_dict(item) for item in all_results]
+    matches = search_favorites(venues, query)
+    if not matches:
+        await message.answer(
+            "Ничего не найдено. Попробуйте другой запрос или отмените поиск.",
+            reply_markup=favorite_search_keyboard(),
+        )
+        return
+
+    results = [asdict(venue) for venue in matches]
+    await state.set_state(None)
+    await state.update_data(
+        results=results,
+        result_index=0,
+        favorite_filter=None,
+        favorite_search_query=query,
+    )
+
+    venue = matches[0]
+    await message.answer(
+        f"🔎 <b>Поиск в избранном:</b> {escape(query)}\n\n"
+        + render_venue_card(
+            venue,
+            position=1,
+            total=len(matches),
+        ),
+        reply_markup=results_keyboard(
+            venue.id,
+            can_previous=False,
+            can_next=len(matches) > 1,
+            favorites_mode=True,
+            favorite_search_active=True,
+        ),
+        disable_web_page_preview=True,
+    )
 
 
 @router.callback_query(F.data.startswith("rate:"))

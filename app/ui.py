@@ -158,6 +158,7 @@ def results_keyboard(
     can_next: bool,
     favorites_mode: bool = False,
     active_favorite_tag: str | None = None,
+    favorite_search_active: bool = False,
 ) -> InlineKeyboardMarkup:
     navigation: list[InlineKeyboardButton] = []
     if can_previous:
@@ -184,6 +185,27 @@ def results_keyboard(
                 )
             ]
         )
+        rows.append(
+            [
+                InlineKeyboardButton(
+                    text=(
+                        "🔎 Новый поиск в избранном"
+                        if favorite_search_active
+                        else "🔎 Поиск в избранном"
+                    ),
+                    callback_data="fs:start",
+                )
+            ]
+        )
+        if favorite_search_active:
+            rows.append(
+                [
+                    InlineKeyboardButton(
+                        text="🧹 Сбросить поиск",
+                        callback_data="fs:clear",
+                    )
+                ]
+            )
     if navigation:
         rows.append(navigation)
     rows.append([InlineKeyboardButton(text="← К категориям", callback_data="nav:categories")])
@@ -345,6 +367,19 @@ def favorite_note_keyboard(
         ]
     )
     return InlineKeyboardMarkup(inline_keyboard=rows)
+
+
+def favorite_search_keyboard() -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                InlineKeyboardButton(
+                    text="Отмена",
+                    callback_data="fs:cancel",
+                )
+            ]
+        ]
+    )
 
 
 def favorite_tags_keyboard(
