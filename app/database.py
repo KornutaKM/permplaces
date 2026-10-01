@@ -11,6 +11,33 @@ class DatabaseSchemaError(RuntimeError):
     pass
 
 
+async def _table_columns(
+    database: aiosqlite.Connection,
+    table_name: str,
+) -> set[str]:
+    cursor = await database.execute(f'PRAGMA table_info("{table_name}")')
+    rows = await cursor.fetchall()
+    await cursor.close()
+    return {
+        str(row[1])
+        for row in rows
+        if len(row) > 1 and isinstance(row[1], str)
+    }
+
+
+async def _require_columns(
+    database: aiosqlite.Connection,
+    table_name: str,
+    required: set[str],
+) -> None:
+    columns = await _table_columns(database, table_name)
+    missing = sorted(required - columns)
+    if missing:
+        raise DatabaseSchemaError(
+            f"table {table_name} is missing required columns: {', '.join(missing)}"
+        )
+
+
 async def initialize_database(database_path: str) -> None:
     """Create or migrate the application SQLite schema transactionally."""
 
@@ -72,6 +99,23 @@ async def initialize_database(database_path: str) -> None:
                 )
                 """
             )
+
+            await _require_columns(
+                database,
+                "favorites",
+                {"user_id", "venue_id", "payload", "created_at"},
+            )
+            await _require_columns(
+                database,
+                "venue_ratings",
+                {"user_id", "venue_key", "score", "updated_at_ns"},
+            )
+            await _require_columns(
+                database,
+                "provider_daily_request_budget",
+                {"provider", "day", "used"},
+            )
+
             await database.execute(f"PRAGMA user_version = {SCHEMA_VERSION}")
             await database.commit()
         except BaseException:
