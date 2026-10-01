@@ -38,7 +38,6 @@ class DatabaseInspection:
 
 
 @dataclass(frozen=True, slots=True)
-@dataclass(frozen=True, slots=True)
 class DatabasePreflight:
     path: Path
     app_version: str
@@ -66,6 +65,7 @@ class DatabasePreflight:
         return self.status == "ok"
 
 
+@dataclass(frozen=True, slots=True)
 class DatabaseAudit:
     path: Path
     favorites: int
