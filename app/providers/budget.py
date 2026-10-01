@@ -25,6 +25,14 @@ class DailyBudgetStatus:
         return max(0, self.limit - self.used)
 
 
+def render_daily_budget_status(status: DailyBudgetStatus) -> str:
+    return (
+        "локальный лимит: "
+        f"{status.used}/{status.limit}; "
+        f"осталось {status.remaining}; UTC-день {status.day}"
+    )
+
+
 class SQLiteDailyRequestBudget:
     """Persistent application-side request guard keyed by UTC calendar day."""
 

@@ -1,3 +1,4 @@
+import sqlite3
 from dataclasses import asdict, replace
 from html import escape
 
@@ -11,6 +12,8 @@ from aiogram.types import CallbackQuery, Message, ReplyKeyboardRemove
 from app.data import FieldSource, PhotoRef, SourceRef, Venue
 from app.districts import DISTRICT_BY_KEY, PERM_DISTRICTS, PERM_RELATION_ID
 from app.filters import PlaceFilters
+from app.privacy import UserDataRepository
+from app.providers.budget import SQLiteDailyRequestBudget, render_daily_budget_status
 from app.providers.capabilities import ProviderStatus, render_provider_statuses
 from app.providers.overpass import ProviderError
 from app.query import parse_search_query, plan_search_query
@@ -26,9 +29,11 @@ from app.storage import FavoritesRepository
 from app.ui import (
     CATEGORY_LABELS,
     categories_keyboard,
+    delete_data_confirmation_keyboard,
     districts_keyboard,
     filters_keyboard,
     home_keyboard,
+    mydata_keyboard,
     primary_photo_url,
     rating_keyboard,
     render_venue_card,
@@ -249,11 +254,88 @@ async def start(message: Message, state: FSMContext) -> None:
 async def provider_diagnostics(
     message: Message,
     provider_statuses: tuple[ProviderStatus, ...],
+    provider_budgets: dict[str, SQLiteDailyRequestBudget],
 ) -> None:
+    runtime_notes: dict[str, str] = {}
+    for key, budget in provider_budgets.items():
+        try:
+            runtime_notes[key] = render_daily_budget_status(await budget.status())
+        except sqlite3.Error:
+            runtime_notes[key] = "локальный лимит: статус временно недоступен"
+
     await message.answer(
-        render_provider_statuses(provider_statuses),
+        render_provider_statuses(
+            provider_statuses,
+            runtime_notes=runtime_notes,
+        ),
         disable_web_page_preview=True,
     )
+
+
+@router.message(Command("mydata"))
+async def my_data(
+    message: Message,
+    user_data_repository: UserDataRepository,
+) -> None:
+    if message.from_user is None:
+        return
+
+    summary = await user_data_repository.summary_for_user(
+        user_id=message.from_user.id,
+    )
+    await message.answer(
+        "<b>Мои данные в PermPlaces</b>\n\n"
+        f"❤️ Избранное: <b>{summary.favorites}</b>\n"
+        f"⭐ Мои оценки: <b>{summary.ratings}</b>\n\n"
+        "Геолокация и текущие результаты поиска хранятся только в памяти "
+        "текущего процесса и не входят в постоянную SQLite-базу.\n\n"
+        "Удаление ниже касается постоянных данных PermPlaces: избранного "
+        "и ваших community-оценок.",
+        reply_markup=mydata_keyboard(
+            has_persistent_data=summary.total_rows > 0,
+        ),
+    )
+
+
+@router.callback_query(F.data == "privacy:delete")
+async def delete_my_data_requested(callback: CallbackQuery) -> None:
+    await callback.answer()
+    if callback.message:
+        await callback.message.edit_text(
+            "<b>Удалить мои данные PermPlaces?</b>\n\n"
+            "Будут удалены все ваши сохранённые места и community-оценки. "
+            "Это действие нельзя отменить.",
+            reply_markup=delete_data_confirmation_keyboard(),
+        )
+
+
+@router.callback_query(F.data == "privacy:delete:cancel")
+async def delete_my_data_cancelled(callback: CallbackQuery) -> None:
+    await callback.answer("Удаление отменено")
+    if callback.message:
+        await callback.message.edit_text(
+            "Удаление отменено. Ваши постоянные данные не изменены."
+        )
+
+
+@router.callback_query(F.data == "privacy:delete:confirm")
+async def delete_my_data_confirmed(
+    callback: CallbackQuery,
+    state: FSMContext,
+    user_data_repository: UserDataRepository,
+) -> None:
+    deleted = await user_data_repository.delete_for_user(
+        user_id=callback.from_user.id,
+    )
+    await state.clear()
+    await callback.answer("Данные удалены")
+    if callback.message:
+        await callback.message.edit_text(
+            "<b>Данные PermPlaces удалены.</b>\n\n"
+            f"Удалено избранных мест: <b>{deleted.favorites}</b>\n"
+            f"Удалено оценок: <b>{deleted.ratings}</b>\n\n"
+            "Также очищено текущее состояние поиска в памяти бота."
+        )
 
 
 @router.message(F.location)

@@ -2,7 +2,9 @@ from urllib.parse import parse_qs, urlsplit
 
 from app.data import PhotoRef, SourceRef, Venue
 from app.ui import (
+    delete_data_confirmation_keyboard,
     filters_keyboard,
+    mydata_keyboard,
     primary_photo_url,
     rating_keyboard,
     render_venue_card,
@@ -567,3 +569,29 @@ def test_rating_keyboard_marks_current_score_and_offers_removal() -> None:
     assert "✅ 4 ⭐" in labels
     assert "🗑 Удалить мою оценку" in labels
     assert "rating:remove:osm:node/88" in callbacks
+
+
+
+def test_mydata_keyboard_only_exposes_delete_when_data_exists() -> None:
+    assert mydata_keyboard(has_persistent_data=False) is None
+
+    keyboard = mydata_keyboard(has_persistent_data=True)
+    assert keyboard is not None
+    button = keyboard.inline_keyboard[0][0]
+    assert button.text == "🗑 Удалить мои данные"
+    assert button.callback_data == "privacy:delete"
+
+
+def test_delete_data_confirmation_requires_explicit_confirmation() -> None:
+    keyboard = delete_data_confirmation_keyboard()
+
+    callbacks = [
+        button.callback_data
+        for row in keyboard.inline_keyboard
+        for button in row
+    ]
+
+    assert callbacks == [
+        "privacy:delete:confirm",
+        "privacy:delete:cancel",
+    ]

@@ -39,8 +39,14 @@ The Telegram command:
 /providers
 ```
 
-shows which adapters are enabled and the capabilities they advertise. The output never
-contains API keys, tokens, endpoint query strings or user coordinates.
+shows which adapters are enabled and the capabilities they advertise. For an enabled Geoapify
+adapter it also reads the application-side SQLite budget counter and shows used/limit/remaining
+for the current UTC day. Reading diagnostics does not reserve another provider request.
+
+If the local budget database read fails, diagnostics show that the budget status is temporarily
+unavailable rather than exposing an exception or secret material.
+
+The output never contains API keys, tokens, endpoint query strings or user coordinates.
 
 ## Dedup v2
 

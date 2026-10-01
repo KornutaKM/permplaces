@@ -9,6 +9,7 @@ from app.bot import router
 from app.config import load_settings
 from app.database import initialize_database
 from app.health import HealthServer
+from app.privacy import UserDataRepository
 from app.providers.budget import DailyBudgetPlacesProvider, SQLiteDailyRequestBudget
 from app.providers.cache import CachedPlacesProvider
 from app.providers.capabilities import (
@@ -163,6 +164,7 @@ async def main() -> None:
     composite_provider = CompositePlacesProvider(aggregate_providers)
     favorites_repository = FavoritesRepository(settings.database_path)
     ratings_repository = RatingsRepository(settings.database_path)
+    user_data_repository = UserDataRepository(settings.database_path)
     search_service = SearchService(
         composite_provider,
         ratings_repository=ratings_repository,
@@ -192,12 +194,19 @@ async def main() -> None:
             settings.health_port,
         )
 
+        provider_budgets = (
+            {"geoapify": geoapify_budget}
+            if geoapify_budget is not None
+            else {}
+        )
         await dispatcher.start_polling(
             bot,
             search_service=search_service,
             favorites_repository=favorites_repository,
             ratings_repository=ratings_repository,
+            user_data_repository=user_data_repository,
             provider_statuses=provider_statuses,
+            provider_budgets=provider_budgets,
         )
     finally:
         health_server.state.mark_not_ready()

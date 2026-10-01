@@ -113,3 +113,32 @@ def test_capabilities_can_reject_unsupported_combined_open_filters() -> None:
         category="cafe",
         filters=PlaceFilters(open_now=True, open_late=True),
     )
+
+
+
+def test_provider_diagnostics_include_runtime_note_only_for_matching_provider() -> None:
+    statuses = (
+        ProviderStatus(
+            key="osm",
+            label="OpenStreetMap / Overpass",
+            enabled=True,
+            capabilities=OVERPASS_CAPABILITIES,
+        ),
+        ProviderStatus(
+            key="geoapify",
+            label="Geoapify Places",
+            enabled=True,
+            capabilities=GEOAPIFY_CAPABILITIES,
+        ),
+    )
+
+    rendered = render_provider_statuses(
+        statuses,
+        runtime_notes={
+            "geoapify": "локальный лимит: 17/2500; осталось 2483",
+        },
+    )
+
+    assert "Geoapify Places" in rendered
+    assert "локальный лимит: 17/2500; осталось 2483" in rendered
+    assert rendered.count("локальный лимит") == 1

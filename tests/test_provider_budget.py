@@ -5,7 +5,12 @@ import pytest
 from app.data import Venue
 from app.filters import PlaceFilters
 from app.providers.base import ProviderError
-from app.providers.budget import DailyBudgetPlacesProvider, SQLiteDailyRequestBudget
+from app.providers.budget import (
+    DailyBudgetPlacesProvider,
+    DailyBudgetStatus,
+    SQLiteDailyRequestBudget,
+    render_daily_budget_status,
+)
 from app.providers.capabilities import ProviderCapabilities
 
 
@@ -146,3 +151,20 @@ def test_daily_budget_rejects_invalid_configuration(tmp_path) -> None:
             provider=" ",
             daily_limit=1,
         )
+
+
+
+def test_daily_budget_status_renderer_is_safe_and_explicit() -> None:
+    rendered = render_daily_budget_status(
+        DailyBudgetStatus(
+            provider="geoapify",
+            day="2026-10-01",
+            used=17,
+            limit=2500,
+        )
+    )
+
+    assert "17/2500" in rendered
+    assert "осталось 2483" in rendered
+    assert "UTC-день 2026-10-01" in rendered
+    assert "apiKey" not in rendered

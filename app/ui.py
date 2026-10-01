@@ -264,6 +264,41 @@ def share_venue_url(venue: Venue) -> str:
     )
 
 
+def mydata_keyboard(
+    *,
+    has_persistent_data: bool,
+) -> InlineKeyboardMarkup | None:
+    if not has_persistent_data:
+        return None
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                InlineKeyboardButton(
+                    text="🗑 Удалить мои данные",
+                    callback_data="privacy:delete",
+                )
+            ]
+        ]
+    )
+
+
+def delete_data_confirmation_keyboard() -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                InlineKeyboardButton(
+                    text="Да, удалить",
+                    callback_data="privacy:delete:confirm",
+                ),
+                InlineKeyboardButton(
+                    text="Отмена",
+                    callback_data="privacy:delete:cancel",
+                ),
+            ]
+        ]
+    )
+
+
 def rating_keyboard(
     venue_id: str,
     *,
