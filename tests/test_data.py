@@ -5,6 +5,7 @@ from app.ui import (
     delete_data_confirmation_keyboard,
     favorite_filter_keyboard,
     favorite_note_keyboard,
+    favorite_search_keyboard,
     favorite_tags_keyboard,
     filters_keyboard,
     mydata_keyboard,
@@ -804,3 +805,33 @@ def test_venue_keyboard_exposes_tags_only_in_favorites_context() -> None:
 
     assert "🏷 Мои метки" not in normal_labels
     assert "🏷 Мои метки" in favorite_labels
+
+
+
+def test_favorite_search_keyboard_has_explicit_cancel() -> None:
+    keyboard = favorite_search_keyboard()
+
+    assert keyboard.inline_keyboard[0][0].text == "Отмена"
+    assert keyboard.inline_keyboard[0][0].callback_data == "fs:cancel"
+
+
+def test_favorite_results_keyboard_marks_active_search_and_clear_action() -> None:
+    keyboard = results_keyboard(
+        "osm:node/search",
+        can_previous=False,
+        can_next=False,
+        favorites_mode=True,
+        favorite_search_active=True,
+    )
+    buttons = [
+        button
+        for row in keyboard.inline_keyboard
+        for button in row
+    ]
+    labels = [button.text for button in buttons]
+    callbacks = [button.callback_data for button in buttons]
+
+    assert "🔎 Новый поиск в избранном" in labels
+    assert "🧹 Сбросить поиск" in labels
+    assert "fs:start" in callbacks
+    assert "fs:clear" in callbacks
