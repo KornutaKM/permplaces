@@ -4,7 +4,7 @@ Telegram-ассистент для поиска кафе, ресторанов, 
 
 ## Статус
 
-Версия 0.34 добавляет безопасный SQLite consistency audit и offline repair для derived favorite alias index: оператор может обнаружить missing/unexpected/orphan aliases без чтения пользовательских payloads в вывод и восстановить индекс из favorites с автоматическим safety-backup.
+Версия 0.35 добавляет личные заметки к избранным местам: alias-aware SQLite storage, безопасное Telegram-редактирование, удаление вместе с favorite, включение в `/mydata` и versioned JSON export.
 
 Рабочие вертикальные сценарии:
 
@@ -54,7 +54,9 @@ Telegram-ассистент для поиска кафе, ресторанов, 
 - runtime-логи provider latency, cache hit/miss/coalescing/eviction и failover без координат пользователя;
 - ❤️ постоянное избранное в SQLite, изолированное по Telegram user ID;
 - favorites используют provider aliases: одна физическая карточка не дублируется только из-за смены primary source после OSM/Geoapify merge;
-- provider aliases избранного индексируются в SQLite schema v2; legacy favorites автоматически backfill-ятся при startup migration;
+- provider aliases избранного индексируются в SQLite; legacy favorites автоматически backfill-ятся при startup migration;
+- 📝 личные заметки до 500 символов доступны только для сохранённых favorites, не отправляются провайдерам и следуют exact provider aliases;
+- удаление favorite транзакционно удаляет и связанные personal notes;
 - ⭐ собственные оценки пользователей PermPlaces 1–5 без платного rating API;
 - community rating агрегируется по provider aliases без двойного учёта одного пользователя;
 - пользователь видит свою текущую оценку, может изменить или удалить её;
@@ -65,7 +67,7 @@ Telegram-ассистент для поиска кафе, ресторанов, 
 - conservative dedup v2 с branch-safe phone/site/name/address matching;
 - corroborating field provenance: одинаковый сохранённый факт может иметь несколько источников;
 - безопасная команда `/providers` показывает активные источники, возможности и текущий local Geoapify budget без секретов;
-- `/mydata` показывает только агрегированные counts текущего пользователя, даёт скачать versioned JSON export и подтверждаемое удаление favorites+community ratings;
+- `/mydata` показывает только агрегированные counts текущего пользователя, даёт скачать versioned JSON export и подтверждаемое удаление favorites+community ratings+personal notes;
 - экспорт генерируется в памяти, не содержит Telegram user ID/секретов и документирован в `docs/DATA_EXPORT.md`;
 - удаление пользовательских данных выполняется одной SQLite-транзакцией и очищает текущий in-memory search state;
 - source-level и field-level provenance для объединённых карточек;
@@ -82,7 +84,7 @@ Telegram-ассистент для поиска кафе, ресторанов, 
 - `/health/live` и `/health/ready` внутри контейнера;
 - Docker HEALTHCHECK, который показывает `healthy` только после runtime + SQLite initialization;
 - hardened container runtime: UID 10001, read-only root FS, `cap_drop: ALL`, `no-new-privileges`, resource limits.
-- versioned SQLite schema v2 через `PRAGMA user_version` и централизованный startup migration;
+- versioned SQLite schema v3 через `PRAGMA user_version` и централизованный startup migration;
 - SQLite admin CLI: `python -m app.db_admin backup|verify|inspect|audit|repair-aliases|restore` с fail-closed guards;
 - `db_admin audit` проверяет derived favorite alias index без изменения данных; repair требует остановленного бота и создаёт pre-repair backup;
 - production runbook для secrets, exact-SHA deploy, backup/restore drill и application rollback: `docs/PRODUCTION.md`.
@@ -235,7 +237,7 @@ OverpassProvider + optional GeoapifyProvider + optional paid catalog providers
 OpenStreetMap + Geoapify Places + optional 2GIS/Foursquare
 ```
 
-Provider abstraction теперь включает deterministic aggregation, capability routing и provenance. Community ratings и favorites используют общий provider identity contract. Контракты: `docs/PROVIDERS.md`, `docs/COMMUNITY_RATINGS.md`, `docs/FAVORITES.md`; privacy/data controls: `docs/PRIVACY.md`, export format: `docs/DATA_EXPORT.md`.
+Provider abstraction теперь включает deterministic aggregation, capability routing и provenance. Community ratings, favorites и personal notes используют общий provider identity contract. Контракты: `docs/PROVIDERS.md`, `docs/COMMUNITY_RATINGS.md`, `docs/FAVORITES.md`, `docs/FAVORITE_NOTES.md`; privacy/data controls: `docs/PRIVACY.md`, export format: `docs/DATA_EXPORT.md`.
 
 ## Следующие этапы
 
