@@ -9,6 +9,7 @@ from app.database import initialize_database
 from app.db_admin import (
     DatabaseAdminError,
     audit_database,
+    main as db_admin_main,
     backup_database,
     inspect_database,
     preflight_database,
@@ -744,3 +745,66 @@ def test_preflight_database_is_read_only_for_user_rows(tmp_path: Path) -> None:
     assert favorite_row is not None
     assert favorite_row[0] == "geoapify:place-audit"
     assert note_row == ("osm:node/audit", "keep me", 100)
+
+
+
+def test_preflight_cli_prints_only_safe_release_summary(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    database = tmp_path / "permplaces.db"
+    asyncio.run(initialize_database(str(database)))
+    monkeypatch.setattr(
+        "sys.argv",
+        [
+            "app.db_admin",
+            "preflight",
+            "--database",
+            str(database),
+        ],
+    )
+
+    exit_code = db_admin_main()
+    output = capsys.readouterr().out
+
+    assert exit_code == 0
+    assert output.startswith("preflight_ok ")
+    assert "app_version=0.44.0" in output
+    assert "expected_schema_version=4" in output
+    assert "schema_version=4" in output
+    assert "missing_tables=-" in output
+    assert "missing_columns=-" in output
+    assert "missing_indexes=-" in output
+    assert "audit_consistent=True" in output
+    assert "user_id" not in output
+    assert "payload" not in output
+    assert "note=" not in output
+
+
+def test_preflight_cli_exits_three_for_schema_mismatch(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    database = tmp_path / "permplaces.db"
+    asyncio.run(initialize_database(str(database)))
+    with sqlite3.connect(database) as connection:
+        connection.execute("PRAGMA user_version = 3")
+        connection.commit()
+    monkeypatch.setattr(
+        "sys.argv",
+        [
+            "app.db_admin",
+            "preflight",
+            "--database",
+            str(database),
+        ],
+    )
+
+    exit_code = db_admin_main()
+    output = capsys.readouterr().out
+
+    assert exit_code == 3
+    assert output.startswith("preflight_migration_required ")
+    assert "audit_consistent=None" in output
