@@ -90,10 +90,28 @@ is the rollback boundary for the database. v0.36 raises the schema from 3 to 4 f
 Do not assume that an older application image can open a migrated database: PermPlaces rejects a
 database whose schema version is newer than the running application.
 
-Build and replace only the bot service:
+Build the target image first:
 
 ```bash
 docker compose build --pull bot
+```
+
+Before replacing the running bot, execute the target image's read-only database preflight against
+the mounted production volume:
+
+```bash
+docker compose run --rm --no-deps   bot python -m app.db_admin preflight   --database /app/data/permplaces.db
+```
+
+For releases that keep the current schema, require `preflight_ok` before replacement. If the target
+release intentionally raises `SCHEMA_VERSION`, `preflight_migration_required` is expected before
+first startup, but only proceed after the verified pre-migration backup described above exists.
+`preflight_schema_newer`, `preflight_schema_drift` and `preflight_data_drift` are stop
+conditions that require investigation rather than automatic cleanup.
+
+Replace only the bot service:
+
+```bash
 docker compose up -d --no-deps bot
 ```
 
@@ -166,6 +184,15 @@ docker compose run --rm --no-deps \
 docker compose run --rm --no-deps \
   -v "$PWD/backups:/backup:ro" \
   bot python -m app.db_admin inspect \
+  --database /backup/permplaces-YYYYMMDDTHHMMSSZ.db
+```
+
+Run the target image's full read-only gate on the same backup:
+
+```bash
+docker compose run --rm --no-deps \
+  -v "$PWD/backups:/backup:ro" \
+  bot python -m app.db_admin preflight \
   --database /backup/permplaces-YYYYMMDDTHHMMSSZ.db
 ```
 
@@ -244,9 +271,9 @@ If readiness stays unhealthy:
 4. confirm there is only one polling instance for the token;
 5. check provider failures separately from core bot startup; optional Geoapify/2GIS/Foursquare keys are not
    required for the base OSM flow;
-6. if SQLite initialization fails, run `python -m app.db_admin verify`, `python -m app.db_admin inspect`
-   and `python -m app.db_admin audit` before considering a restore; a database newer than the
-   application must not be downgraded in place;
+6. if SQLite initialization fails, run `python -m app.db_admin preflight` first, then use
+   `verify`, `inspect` or `audit` for narrower diagnosis; a database newer than the application
+   must not be downgraded in place;
 7. if only the derived favorite alias index is inconsistent, stop the bot and use
    `python -m app.db_admin repair-aliases --confirm-stopped` instead of restoring the whole database;
 8. if `audit` reports orphan/invalid notes or tags, do not use alias repair as a destructive
