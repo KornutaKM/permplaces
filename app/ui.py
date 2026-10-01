@@ -305,6 +305,32 @@ def delete_data_confirmation_keyboard() -> InlineKeyboardMarkup:
     )
 
 
+def favorite_note_keyboard(
+    venue_id: str,
+    *,
+    has_note: bool,
+) -> InlineKeyboardMarkup:
+    rows: list[list[InlineKeyboardButton]] = []
+    if has_note:
+        rows.append(
+            [
+                InlineKeyboardButton(
+                    text="🗑 Удалить заметку",
+                    callback_data=f"favorite_note:remove:{venue_id}",
+                )
+            ]
+        )
+    rows.append(
+        [
+            InlineKeyboardButton(
+                text="Отмена",
+                callback_data="favorite_note:cancel",
+            )
+        ]
+    )
+    return InlineKeyboardMarkup(inline_keyboard=rows)
+
+
 def rating_keyboard(
     venue_id: str,
     *,
@@ -331,7 +357,7 @@ def rating_keyboard(
     return InlineKeyboardMarkup(inline_keyboard=rows)
 
 
-def venue_keyboard(venue: Venue) -> InlineKeyboardMarkup:
+def venue_keyboard(venue: Venue, *, allow_note: bool = False) -> InlineKeyboardMarkup:
     primary_actions = [
         InlineKeyboardButton(text="📍 Маршрут", callback_data=f"route:{venue.id}")
     ]
@@ -353,6 +379,15 @@ def venue_keyboard(venue: Venue) -> InlineKeyboardMarkup:
             )
         ]
     )
+    if allow_note:
+        rows.append(
+            [
+                InlineKeyboardButton(
+                    text="📝 Заметка",
+                    callback_data=f"favorite_note:edit:{venue.id}",
+                )
+            ]
+        )
     rows.append(
         [
             InlineKeyboardButton(
@@ -404,6 +439,9 @@ def render_venue_card(venue: Venue, *, position: int = 1, total: int = 1) -> str
             f"{venue.community_rating:.1f}/5 "
             f"({venue.community_rating_count})"
         )
+
+    if venue.personal_note:
+        lines.append(f"📝 Ваша заметка: {escape(venue.personal_note)}")
 
     details = [escape(venue.category_label)]
     if venue.price_label:
