@@ -1,10 +1,13 @@
 from urllib.parse import parse_qs, urlsplit
 
 from app.data import PhotoRef, SourceRef, Venue
+from app.favorite_compare import favorite_compare_options
 from app.favorite_facets import build_favorite_facets
 from app.ui import (
     delete_data_confirmation_keyboard,
     favorite_category_facets_keyboard,
+    favorite_compare_keyboard,
+    favorite_comparison_result_keyboard,
     favorite_cuisine_facets_keyboard,
     favorite_district_facets_keyboard,
     favorite_facets_keyboard,
@@ -18,6 +21,7 @@ from app.ui import (
     mydata_keyboard,
     primary_photo_url,
     rating_keyboard,
+    render_favorite_comparison,
     render_venue_card,
     results_keyboard,
     route_keyboard,
@@ -1049,3 +1053,159 @@ def test_favorite_overview_keyboard_links_to_facets() -> None:
     ]
 
     assert "fx:menu" in callbacks
+
+
+
+def test_favorites_results_keyboard_exposes_compare_action() -> None:
+    keyboard = results_keyboard(
+        "osm:node/compare",
+        can_previous=False,
+        can_next=False,
+        favorites_mode=True,
+    )
+    buttons = [
+        button
+        for row in keyboard.inline_keyboard
+        for button in row
+    ]
+
+    compare = next(
+        button
+        for button in buttons
+        if button.callback_data == "fcmp:start"
+    )
+    assert compare.text == "⚖️ Сравнить с другим избранным"
+
+
+def test_favorite_compare_keyboard_uses_tokens_and_truncates_long_names() -> None:
+    primary = Venue(
+        id="osm:node/primary",
+        name="Primary",
+        category="cafe",
+        category_label="Кофейня",
+        latitude=58.01,
+        longitude=56.25,
+        source="osm",
+        source_id="node/primary",
+    )
+    second = Venue(
+        id="foursquare:0123456789abcdef01234567",
+        name="Очень длинное название заведения " + "x" * 80,
+        category="restaurant",
+        category_label="Ресторан",
+        latitude=58.02,
+        longitude=56.26,
+        source="foursquare",
+        source_id="0123456789abcdef01234567",
+    )
+    options = favorite_compare_options(
+        [primary, second],
+        primary_id=primary.id,
+    )
+
+    keyboard = favorite_compare_keyboard(options)
+    button = keyboard.inline_keyboard[0][0]
+
+    assert button.callback_data.startswith("fcmp:pick:")
+    assert second.id not in button.callback_data
+    assert len(button.text) <= 44
+    assert button.text.endswith("…")
+    assert keyboard.inline_keyboard[-1][0].callback_data == "results:current"
+
+
+def test_favorite_comparison_result_keyboard_has_choose_and_back() -> None:
+    keyboard = favorite_comparison_result_keyboard()
+    callbacks = [
+        button.callback_data
+        for row in keyboard.inline_keyboard
+        for button in row
+    ]
+
+    assert callbacks == ["fcmp:choose", "results:current"]
+
+
+def test_render_favorite_comparison_is_snapshot_only_and_keeps_attribution() -> None:
+    first = Venue(
+        id="osm:node/compare-1",
+        name="Первая <кофейня>",
+        category="cafe",
+        category_label="Кофейня",
+        latitude=58.01,
+        longitude=56.25,
+        source="osm",
+        source_id="node/compare-1",
+        source_refs=(SourceRef("osm", "node/compare-1"),),
+        address="Ленина, 1",
+        district="Ленинский",
+        distance_m=123,
+        is_open_now=True,
+        opening_hours="Mo-Fr 09:00-20:00",
+        cuisine=("coffee_shop",),
+        wifi=True,
+        outdoor_seating=None,
+        personal_tags=("work",),
+    )
+    second = Venue(
+        id="foursquare:compare-2",
+        name="Второе место",
+        category="restaurant",
+        category_label="Ресторан",
+        latitude=58.02,
+        longitude=56.26,
+        source="foursquare",
+        source_id="compare-2",
+        source_refs=(SourceRef("foursquare", "compare-2"),),
+        rating=8.7,
+        rating_scale=10.0,
+        review_count=120,
+        price_label="₽₽",
+        wifi=False,
+        outdoor_seating=True,
+        kids_area=True,
+        community_rating=4.5,
+        community_rating_count=2,
+    )
+
+    rendered = render_favorite_comparison(first, second)
+
+    assert "Первая &lt;кофейня&gt;" in rendered
+    assert "Кухня: coffee shop" in rendered
+    assert "Wi-Fi: да" in rendered
+    assert "Веранда: не указано" in rendered
+    assert "Рейтинг источника: 8.7/10 (120)" in rendered
+    assert "PermPlaces: 4.5/5 (2)" in rendered
+    assert "123 м" not in rendered
+    assert "Открыто сейчас" not in rendered
+    assert "не определяет победителя" in rendered
+    assert "OpenStreetMap contributors" in rendered
+    assert "Powered by Foursquare" in rendered
+
+
+def test_comparison_does_not_show_provider_rating_without_explicit_scale() -> None:
+    first = Venue(
+        id="osm:node/scale-1",
+        name="Первое",
+        category="cafe",
+        category_label="Кофейня",
+        latitude=58.01,
+        longitude=56.25,
+        source="osm",
+        source_id="node/scale-1",
+        rating=4.9,
+        rating_scale=None,
+    )
+    second = Venue(
+        id="osm:node/scale-2",
+        name="Второе",
+        category="cafe",
+        category_label="Кофейня",
+        latitude=58.02,
+        longitude=56.26,
+        source="osm",
+        source_id="node/scale-2",
+    )
+
+    rendered = render_favorite_comparison(first, second)
+
+    assert "4.9" not in rendered
+    assert rendered.count("Рейтинг источника: не указан") == 2
