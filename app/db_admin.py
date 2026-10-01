@@ -11,6 +11,8 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 from app.database import favorite_identity_keys_from_payload
+from app.notes import MAX_PERSONAL_NOTE_LENGTH
+from app.tags import FAVORITE_TAG_KEYS
 
 
 class DatabaseAdminError(RuntimeError):
@@ -38,14 +40,31 @@ class DatabaseAudit:
     missing_aliases: int
     unexpected_aliases: int
     orphan_aliases: int
+    orphan_notes: int
+    invalid_notes: int
+    orphan_tags: int
+    invalid_tags: int
 
     @property
-    def consistent(self) -> bool:
+    def aliases_consistent(self) -> bool:
         return (
             self.missing_aliases == 0
             and self.unexpected_aliases == 0
             and self.orphan_aliases == 0
         )
+
+    @property
+    def metadata_consistent(self) -> bool:
+        return (
+            self.orphan_notes == 0
+            and self.invalid_notes == 0
+            and self.orphan_tags == 0
+            and self.invalid_tags == 0
+        )
+
+    @property
+    def consistent(self) -> bool:
+        return self.aliases_consistent and self.metadata_consistent
 
 
 def _read_only_connection(path: Path) -> sqlite3.Connection:
@@ -165,6 +184,61 @@ def _favorite_alias_sets(
     return expected, actual, favorite_ids
 
 
+def _user_identity_pairs(
+    rows: set[tuple[int, str, str]],
+) -> set[tuple[int, str]]:
+    return {
+        (user_id, identity_key)
+        for user_id, _venue_id, identity_key in rows
+    }
+
+
+def _metadata_audit_counts(
+    connection: sqlite3.Connection,
+    *,
+    expected_aliases: set[tuple[int, str, str]],
+) -> tuple[int, int, int, int]:
+    expected_identities = _user_identity_pairs(expected_aliases)
+
+    note_rows = connection.execute(
+        """
+        SELECT user_id, identity_key, note
+        FROM favorite_notes
+        """
+    ).fetchall()
+    orphan_notes = 0
+    invalid_notes = 0
+    for user_id, identity_key, note in note_rows:
+        valid_identity = isinstance(user_id, int) and isinstance(identity_key, str)
+        if not valid_identity or (user_id, identity_key) not in expected_identities:
+            orphan_notes += 1
+
+        if (
+            not isinstance(note, str)
+            or not note.strip()
+            or len(note) > MAX_PERSONAL_NOTE_LENGTH
+        ):
+            invalid_notes += 1
+
+    allowed_tags = set(FAVORITE_TAG_KEYS)
+    tag_rows = connection.execute(
+        """
+        SELECT user_id, identity_key, tag
+        FROM favorite_tags
+        """
+    ).fetchall()
+    orphan_tags = 0
+    invalid_tags = 0
+    for user_id, identity_key, tag in tag_rows:
+        valid_identity = isinstance(user_id, int) and isinstance(identity_key, str)
+        if not valid_identity or (user_id, identity_key) not in expected_identities:
+            orphan_tags += 1
+        if not isinstance(tag, str) or tag not in allowed_tags:
+            invalid_tags += 1
+
+    return orphan_notes, invalid_notes, orphan_tags, invalid_tags
+
+
 def audit_database(path: str | Path) -> DatabaseAudit:
     database_path = verify_database(path)
     try:
@@ -177,6 +251,15 @@ def audit_database(path: str | Path) -> DatabaseAudit:
                 for row in actual
                 if (row[0], row[1]) not in favorite_ids
             }
+            (
+                orphan_notes,
+                invalid_notes,
+                orphan_tags,
+                invalid_tags,
+            ) = _metadata_audit_counts(
+                connection,
+                expected_aliases=expected,
+            )
             favorite_count = _table_count(connection, "favorites")
             if favorite_count is None:
                 raise DatabaseAdminError(
@@ -190,6 +273,10 @@ def audit_database(path: str | Path) -> DatabaseAudit:
                 missing_aliases=len(missing),
                 unexpected_aliases=len(unexpected),
                 orphan_aliases=len(orphan),
+                orphan_notes=orphan_notes,
+                invalid_notes=invalid_notes,
+                orphan_tags=orphan_tags,
+                invalid_tags=invalid_tags,
             )
     except sqlite3.Error as exc:
         raise DatabaseAdminError(
@@ -264,9 +351,9 @@ def repair_favorite_aliases(
 
     verify_database(database_path)
     audit = audit_database(database_path)
-    if not audit.consistent:
+    if not audit.aliases_consistent:
         raise DatabaseAdminError(
-            "Alias repair finished but consistency audit still reports drift."
+            "Alias repair finished but alias consistency audit still reports drift."
         )
     return safety_backup
 
@@ -393,7 +480,7 @@ def _parser() -> argparse.ArgumentParser:
 
     audit = subparsers.add_parser(
         "audit",
-        help="Check favorite identity alias consistency without changing data.",
+        help="Check favorite aliases and user metadata consistency without changing data.",
     )
     audit.add_argument("--database", default=_database_default())
 
@@ -467,7 +554,11 @@ def main() -> int:
                 f"actual_aliases={audit.actual_aliases} "
                 f"missing_aliases={audit.missing_aliases} "
                 f"unexpected_aliases={audit.unexpected_aliases} "
-                f"orphan_aliases={audit.orphan_aliases}"
+                f"orphan_aliases={audit.orphan_aliases} "
+                f"orphan_notes={audit.orphan_notes} "
+                f"invalid_notes={audit.invalid_notes} "
+                f"orphan_tags={audit.orphan_tags} "
+                f"invalid_tags={audit.invalid_tags}"
             )
             return 0 if audit.consistent else 3
 
