@@ -77,6 +77,15 @@ contact external providers.
 External provider ratings are not used as a cross-provider sort key because their scales are not
 assumed to be comparable. See `docs/FAVORITE_SORTING.md`.
 
+## Overview
+
+The full loaded favorites list can be summarized locally with aggregate counts for personal
+notes/tags plus saved-card category and district labels. Missing district values remain missing;
+the overview never geocodes or infers them.
+
+The overview always uses the full loaded favorite set rather than the current search/filter subset
+and makes no external provider request. See `docs/FAVORITE_OVERVIEW.md`.
+
 ## Safety
 
 Alias matching is scoped by Telegram user ID. Two different users never affect each other's
