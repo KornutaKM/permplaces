@@ -9,6 +9,7 @@ from app.bot import router
 from app.config import load_settings
 from app.database import initialize_database
 from app.health import HealthServer
+from app.notes import NotesRepository
 from app.privacy import UserDataRepository
 from app.providers.budget import DailyBudgetPlacesProvider, SQLiteDailyRequestBudget
 from app.providers.cache import CachedPlacesProvider
@@ -164,6 +165,7 @@ async def main() -> None:
     composite_provider = CompositePlacesProvider(aggregate_providers)
     favorites_repository = FavoritesRepository(settings.database_path)
     ratings_repository = RatingsRepository(settings.database_path)
+    notes_repository = NotesRepository(settings.database_path)
     user_data_repository = UserDataRepository(settings.database_path)
     search_service = SearchService(
         composite_provider,
@@ -204,6 +206,7 @@ async def main() -> None:
             search_service=search_service,
             favorites_repository=favorites_repository,
             ratings_repository=ratings_repository,
+            notes_repository=notes_repository,
             user_data_repository=user_data_repository,
             provider_statuses=provider_statuses,
             provider_budgets=provider_budgets,

@@ -7,7 +7,7 @@ budget counters.
 
 The application schema is versioned with SQLite `PRAGMA user_version`.
 
-Current version: `2`.
+Current version: `3`.
 
 Startup calls one central `initialize_database()` function before Telegram polling begins. The
 initializer:
@@ -22,7 +22,8 @@ initializer:
 Databases created by earlier PermPlaces versions are upgraded in place without deleting existing
 favorites or community ratings. The v1 → v2 migration creates the favorite identity alias index
 and backfills it from each stored favorite payload. If a historical payload cannot be decoded, its
-existing `venue_id` is still indexed as a conservative fallback identity.
+existing `venue_id` is still indexed as a conservative fallback identity. The v2 → v3 migration
+adds the separate personal-note table; no existing favorite or rating payload is rewritten.
 
 Malformed legacy tables are not silently accepted: startup fails before readiness instead of
 pretending that the database is compatible.
@@ -33,11 +34,12 @@ Application-owned tables:
 
 - `favorites` — saved venue payloads per Telegram user;
 - `favorite_identity_aliases` — exact provider identity keys for indexed favorite lookup;
+- `favorite_notes` — private user-authored notes keyed by exact favorite identity;
 - `venue_ratings` — local 1–5 community ratings;
 - `provider_daily_request_budget` — persistent application-side provider request counters.
 
-The indexes `idx_venue_ratings_venue_key` and
-`idx_favorite_identity_aliases_lookup` are part of the schema contract.
+The indexes `idx_venue_ratings_venue_key`, `idx_favorite_identity_aliases_lookup` and
+`idx_favorite_notes_identity_key` are part of the schema contract.
 
 ## Operator inspection
 
@@ -50,7 +52,7 @@ python -m app.db_admin inspect --database data/permplaces.db
 Example:
 
 ```text
-inspect_ok path=data/permplaces.db schema_version=2 favorites=12 favorite_aliases=19 ratings=34 provider_budget_rows=1
+inspect_ok path=data/permplaces.db schema_version=3 favorites=12 favorite_aliases=19 notes=7 ratings=34 provider_budget_rows=1
 ```
 
 The command does not print favorite payloads, Telegram user IDs, provider keys, coordinates or
@@ -81,7 +83,7 @@ python -m app.db_admin repair-aliases \
 
 Repair creates a timestamped `pre-alias-repair` safety backup, rebuilds the alias index only from
 the exact provider identities already stored in favorite payloads, runs `quick_check`, and then
-requires a clean audit. It does not change favorite payloads or community ratings.
+requires a clean audit. It does not change favorite payloads, community ratings or personal notes.
 
 ## Backward and forward compatibility
 
@@ -92,7 +94,7 @@ Newer schema version:
 PermPlaces fails closed. Deploy the matching/newer application rather than downgrading and writing
 to a database it does not understand.
 
-Application rollback and database rollback remain separate decisions. After a schema v2 migration,
-an older v0.31 application intentionally refuses the newer database. Rolling the application back
+Application rollback and database rollback remain separate decisions. After a schema v3 migration,
+v0.34 and older applications intentionally refuse the newer database. Rolling the application back
 across this boundary therefore also requires an explicitly selected pre-migration database backup.
 See `docs/PRODUCTION.md`.

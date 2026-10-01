@@ -58,3 +58,4 @@ class Venue:
     review_count: int | None = None
     community_rating: float | None = None
     community_rating_count: int | None = None
+    personal_note: str | None = None

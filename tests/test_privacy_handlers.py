@@ -10,6 +10,7 @@ from app.bot import (
     provider_diagnostics,
 )
 from app.data import Venue
+from app.notes import NotesRepository
 from app.privacy import UserDataRepository
 from app.providers.budget import DailyBudgetStatus
 from app.providers.capabilities import (
@@ -72,6 +73,7 @@ async def test_mydata_reports_only_current_user_counts(tmp_path) -> None:
     path = str(tmp_path / "permplaces.db")
     favorites = FavoritesRepository(path)
     ratings = RatingsRepository(path)
+    notes = NotesRepository(path)
     repository = UserDataRepository(path)
     await repository.initialize()
 
@@ -79,6 +81,8 @@ async def test_mydata_reports_only_current_user_counts(tmp_path) -> None:
     await favorites.toggle(user_id=200, venue=venue())
     await ratings.set_rating(user_id=100, venue=venue(), score=5)
     await ratings.set_rating(user_id=200, venue=venue(), score=1)
+    await notes.set_note(user_id=100, venue=venue(), text="Личная")
+    await notes.set_note(user_id=200, venue=venue(), text="Чужая")
 
     answer = AsyncMock()
     message = SimpleNamespace(
@@ -91,6 +95,7 @@ async def test_mydata_reports_only_current_user_counts(tmp_path) -> None:
     rendered = answer.await_args.args[0]
     assert "Избранное: <b>1</b>" in rendered
     assert "Мои оценки: <b>1</b>" in rendered
+    assert "Личные заметки: <b>1</b>" in rendered
     assert "100" not in rendered
     assert "200" not in rendered
     assert answer.await_args.kwargs["reply_markup"] is not None
@@ -103,11 +108,13 @@ async def test_confirmed_privacy_delete_clears_persistent_and_session_data(
     path = str(tmp_path / "permplaces.db")
     favorites = FavoritesRepository(path)
     ratings = RatingsRepository(path)
+    notes = NotesRepository(path)
     repository = UserDataRepository(path)
     await repository.initialize()
 
     await favorites.toggle(user_id=300, venue=venue())
     await ratings.set_rating(user_id=300, venue=venue(), score=4)
+    await notes.set_note(user_id=300, venue=venue(), text="Удалить")
 
     edit_text = AsyncMock()
     answer_callback = AsyncMock()
@@ -131,6 +138,7 @@ async def test_confirmed_privacy_delete_clears_persistent_and_session_data(
     rendered = edit_text.await_args.args[0]
     assert "Удалено избранных мест: <b>1</b>" in rendered
     assert "Удалено оценок: <b>1</b>" in rendered
+    assert "Удалено заметок: <b>1</b>" in rendered
 
 
 
@@ -141,11 +149,13 @@ async def test_privacy_export_handler_sends_json_document_for_current_user(
     path = str(tmp_path / "permplaces.db")
     favorites = FavoritesRepository(path)
     ratings = RatingsRepository(path)
+    notes = NotesRepository(path)
     repository = UserDataRepository(path)
     await repository.initialize()
 
     await favorites.toggle(user_id=400, venue=venue())
     await ratings.set_rating(user_id=400, venue=venue(), score=5)
+    await notes.set_note(user_id=400, venue=venue(), text="В экспорт")
 
     answer_document = AsyncMock()
     answer_callback = AsyncMock()
@@ -168,4 +178,5 @@ async def test_privacy_export_handler_sends_json_document_for_current_user(
     caption = answer_document.await_args.kwargs["caption"]
     assert "Избранное: 1" in caption
     assert "Оценки: 1" in caption
+    assert "Заметки: 1" in caption
     assert "400" not in caption

@@ -110,7 +110,7 @@ def test_restore_keeps_pre_restore_snapshot_and_replaces_database(
 def test_inspect_database_reports_schema_and_counts_without_rows(tmp_path: Path) -> None:
     database = tmp_path / "permplaces.db"
     with sqlite3.connect(database) as connection:
-        connection.execute("PRAGMA user_version = 2")
+        connection.execute("PRAGMA user_version = 3")
         connection.execute(
             """
             CREATE TABLE favorites (
@@ -186,13 +186,36 @@ def test_inspect_database_reports_schema_and_counts_without_rows(tmp_path: Path)
                 (42, "osm:1", "geoapify:place-1"),
             ],
         )
+        connection.execute(
+            """
+            CREATE TABLE favorite_notes (
+                user_id INTEGER NOT NULL,
+                identity_key TEXT NOT NULL,
+                note TEXT NOT NULL,
+                updated_at_ns INTEGER NOT NULL,
+                PRIMARY KEY (user_id, identity_key)
+            )
+            """
+        )
+        connection.execute(
+            """
+            INSERT INTO favorite_notes (
+                user_id,
+                identity_key,
+                note,
+                updated_at_ns
+            )
+            VALUES (42, 'osm:1', 'Проверка', 10)
+            """
+        )
         connection.commit()
 
     inspection = inspect_database(database)
 
-    assert inspection.schema_version == 2
+    assert inspection.schema_version == 3
     assert inspection.favorites == 1
     assert inspection.favorite_aliases == 2
+    assert inspection.notes == 1
     assert inspection.ratings == 2
     assert inspection.provider_budget_rows == 1
 
@@ -206,6 +229,7 @@ def test_inspect_database_tolerates_legacy_missing_app_tables(tmp_path: Path) ->
     assert inspection.schema_version == 0
     assert inspection.favorites is None
     assert inspection.favorite_aliases is None
+    assert inspection.notes is None
     assert inspection.ratings is None
     assert inspection.provider_budget_rows is None
 

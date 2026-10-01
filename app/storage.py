@@ -86,6 +86,33 @@ class FavoritesRepository:
                 await cursor.close()
 
                 if matching_ids:
+                    note_keys = set(target_keys)
+                    for stored_id in matching_ids:
+                        alias_cursor = await database.execute(
+                            """
+                            SELECT identity_key
+                            FROM favorite_identity_aliases
+                            WHERE user_id = ? AND venue_id = ?
+                            """,
+                            (user_id, stored_id),
+                        )
+                        note_keys.update(
+                            row[0]
+                            for row in await alias_cursor.fetchall()
+                            if row and isinstance(row[0], str)
+                        )
+                        await alias_cursor.close()
+
+                    note_placeholders = ",".join("?" for _ in note_keys)
+                    await database.execute(
+                        f"""
+                        DELETE FROM favorite_notes
+                        WHERE user_id = ?
+                          AND identity_key IN ({note_placeholders})
+                        """,
+                        (user_id, *sorted(note_keys)),
+                    )
+
                     for stored_id in matching_ids:
                         await database.execute(
                             """
@@ -111,6 +138,7 @@ class FavoritesRepository:
                     is_open_late=None,
                     community_rating=None,
                     community_rating_count=None,
+                    personal_note=None,
                 )
                 payload = json.dumps(
                     asdict(persistent_venue),

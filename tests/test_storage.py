@@ -6,6 +6,7 @@ from dataclasses import asdict
 import pytest
 
 from app.data import FieldSource, PhotoRef, SourceRef, Venue
+from app.notes import NotesRepository
 from app.storage import FavoritesRepository
 
 
@@ -27,6 +28,7 @@ async def test_favorites_survive_repository_recreation(tmp_path) -> None:
         is_open_late=True,
         community_rating=4.5,
         community_rating_count=12,
+        personal_note="transient note",
     )
 
     repository = FavoritesRepository(str(database_path))
@@ -47,6 +49,7 @@ async def test_favorites_survive_repository_recreation(tmp_path) -> None:
     assert favorites[0].is_open_late is None
     assert favorites[0].community_rating is None
     assert favorites[0].community_rating_count is None
+    assert favorites[0].personal_note is None
 
 
 @pytest.mark.asyncio
@@ -330,3 +333,35 @@ async def test_favorite_toggle_maintains_indexed_identity_alias_rows(tmp_path) -
         ).fetchone()
 
     assert alias_count == (0,)
+
+
+
+@pytest.mark.asyncio
+async def test_removing_favorite_also_removes_personal_note_across_aliases(
+    tmp_path,
+) -> None:
+    database_path = tmp_path / "permplaces.db"
+    favorites = FavoritesRepository(str(database_path))
+    notes = NotesRepository(str(database_path))
+    await favorites.initialize()
+
+    _geo, merged = aliased_venues()
+    assert await favorites.toggle(user_id=86, venue=merged) is True
+    await notes.set_note(
+        user_id=86,
+        venue=merged,
+        text="Удалится вместе с избранным",
+    )
+
+    assert await favorites.toggle(user_id=86, venue=merged) is False
+
+    with sqlite3.connect(database_path) as database:
+        note_count = database.execute(
+            """
+            SELECT COUNT(*)
+            FROM favorite_notes
+            WHERE user_id = 86
+            """
+        ).fetchone()
+
+    assert note_count == (0,)

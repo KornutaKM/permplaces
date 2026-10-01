@@ -5,16 +5,17 @@ PermPlaces can export the current user's persistent application data as UTF-8 JS
 
 ## Format contract
 
-Current export format version: `1`.
+Current export format version: `2`.
 
 Top-level structure:
 
 ```json
 {
   "format": "permplaces-user-data",
-  "format_version": 1,
+  "format_version": 2,
   "favorites": [],
-  "community_ratings": []
+  "community_ratings": [],
+  "favorite_notes": []
 }
 ```
 
@@ -43,6 +44,17 @@ Each rating entry contains:
 - exact `provider:source_id` venue key;
 - the user's numeric 1–5 score;
 - the rating update timestamp converted from the internal nanosecond timestamp to UTC ISO 8601.
+
+### Favorite notes
+
+Each personal-note entry contains:
+
+- exact `provider:source_id` identity key;
+- the user's note text;
+- the note update timestamp converted to UTC ISO 8601.
+
+Notes are user-authored local data, not provider facts. They are exported because they are
+persistent user data.
 
 The internal `favorite_identity_aliases` index is derived operational data and is not exported
 separately. Known provider aliases already remain available inside valid favorite
