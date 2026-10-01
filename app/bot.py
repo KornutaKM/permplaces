@@ -689,7 +689,11 @@ async def favorite(
 
 
 @router.callback_query(F.data.startswith("rate:"))
-async def rate_venue(callback: CallbackQuery, state: FSMContext) -> None:
+async def rate_venue(
+    callback: CallbackQuery,
+    state: FSMContext,
+    ratings_repository: RatingsRepository,
+) -> None:
     await callback.answer()
     if not callback.message or not callback.data:
         return
@@ -707,11 +711,23 @@ async def rate_venue(callback: CallbackQuery, state: FSMContext) -> None:
         await callback.message.answer("Карточка устарела. Запустите поиск снова.")
         return
 
+    current_score = await ratings_repository.user_rating_for_venue(
+        user_id=callback.from_user.id,
+        venue=venue,
+    )
+    current_note = (
+        f"\nВаша текущая оценка: <b>{current_score}/5</b>."
+        if current_score is not None
+        else ""
+    )
     await callback.message.answer(
         f"⭐ <b>Оцените {escape(venue.name)}</b>\n\n"
         "Оценка хранится как мнение пользователей PermPlaces и не заменяет "
-        "рейтинг внешнего источника.",
-        reply_markup=rating_keyboard(venue.id),
+        f"рейтинг внешнего источника.{current_note}",
+        reply_markup=rating_keyboard(
+            venue.id,
+            current_score=current_score,
+        ),
     )
 
 
@@ -729,14 +745,17 @@ async def rating_selected(
         await callback.answer("Некорректная оценка.")
         return
 
-    try:
-        score = int(parts[1])
-    except ValueError:
-        await callback.answer("Некорректная оценка.")
-        return
-    if not 1 <= score <= 5:
-        await callback.answer("Оценка должна быть от 1 до 5.")
-        return
+    action = parts[1]
+    score: int | None = None
+    if action != "remove":
+        try:
+            score = int(action)
+        except ValueError:
+            await callback.answer("Некорректная оценка.")
+            return
+        if not 1 <= score <= 5:
+            await callback.answer("Оценка должна быть от 1 до 5.")
+            return
 
     venue_id = parts[2]
     data = await state.get_data()
@@ -751,11 +770,19 @@ async def rating_selected(
         await callback.answer("Карточка устарела. Запустите поиск снова.")
         return
 
-    summary = await ratings_repository.set_rating(
-        user_id=callback.from_user.id,
-        venue=venue,
-        score=score,
-    )
+    if action == "remove":
+        summary = await ratings_repository.remove_rating(
+            user_id=callback.from_user.id,
+            venue=venue,
+        )
+    else:
+        assert score is not None
+        summary = await ratings_repository.set_rating(
+            user_id=callback.from_user.id,
+            venue=venue,
+            score=score,
+        )
+
     updated_venue = replace(
         venue,
         community_rating=summary.average,
@@ -766,8 +793,21 @@ async def rating_selected(
         for item in dict_results
     ]
     await state.update_data(results=updated_results)
-    await callback.answer("Оценка сохранена ⭐")
 
+    if action == "remove":
+        await callback.answer("Оценка удалена")
+        if callback.message:
+            aggregate = (
+                f"\n👥 PermPlaces: <b>{summary.average:.1f}/5</b> ({summary.count})"
+                if summary.average is not None and summary.count > 0
+                else ""
+            )
+            await callback.message.edit_text(
+                "🗑 Ваша оценка удалена." + aggregate
+            )
+        return
+
+    await callback.answer("Оценка сохранена ⭐")
     if callback.message:
         average = summary.average if summary.average is not None else float(score)
         await callback.message.edit_text(
