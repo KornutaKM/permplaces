@@ -86,6 +86,16 @@ the overview never geocodes or infers them.
 The overview always uses the full loaded favorite set rather than the current search/filter subset
 and makes no external provider request. See `docs/FAVORITE_OVERVIEW.md`.
 
+## Category and district facets
+
+The full loaded favorites set can be filtered locally by saved category and district fields. A
+missing district is a first-class unknown state and is never inferred from coordinates or address
+text.
+
+Facets compose with personal-tag filtering and local sort. Text search keeps its separate relevance
+ordering and clears the active facets when a new successful query starts. See
+`docs/FAVORITE_FACETS.md`.
+
 ## Safety
 
 Alias matching is scoped by Telegram user ID. Two different users never affect each other's
