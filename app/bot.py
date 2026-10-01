@@ -244,6 +244,31 @@ def _favorite_view_results(
     return [asdict(venue) for venue in venues]
 
 
+def _coherent_favorite_view(
+    data: dict[str, object],
+    all_results: list[dict[str, object]],
+) -> tuple[list[dict[str, object]], str | None, str | None]:
+    results = _favorite_view_results(data, all_results)
+    favorite_filter = (
+        data.get("favorite_filter")
+        if isinstance(data.get("favorite_filter"), str)
+        else None
+    )
+    favorite_search_query = (
+        data.get("favorite_search_query")
+        if isinstance(data.get("favorite_search_query"), str)
+        else None
+    )
+
+    if results or not all_results:
+        return results, favorite_filter, favorite_search_query
+
+    reset_data = dict(data)
+    reset_data["favorite_filter"] = None
+    reset_data["favorite_search_query"] = None
+    return _favorite_view_results(reset_data, all_results), None, None
+
+
 async def _edit_current_result(callback: CallbackQuery, state: FSMContext) -> None:
     if not callback.message:
         return
@@ -885,16 +910,11 @@ async def favorite(
                 )
         return
 
-    updated_results = _favorite_view_results(data, updated_all_results)
-    favorite_filter = data.get("favorite_filter")
-    favorite_search_query = data.get("favorite_search_query")
-    if not updated_results:
-        favorite_filter = None
-        favorite_search_query = None
-        view_data = dict(data)
-        view_data["favorite_filter"] = None
-        view_data["favorite_search_query"] = None
-        updated_results = _favorite_view_results(view_data, updated_all_results)
+    (
+        updated_results,
+        favorite_filter,
+        favorite_search_query,
+    ) = _coherent_favorite_view(data, updated_all_results)
 
     index = data.get("result_index", 0)
     if not isinstance(index, int):
@@ -1033,9 +1053,17 @@ async def remove_favorite_note(
         if isinstance(all_results_raw, list)
         else updated_results
     )
+    (
+        updated_results,
+        favorite_filter,
+        favorite_search_query,
+    ) = _coherent_favorite_view(data, updated_all_results)
     await state.update_data(
         results=updated_results,
         favorite_all_results=updated_all_results,
+        favorite_filter=favorite_filter,
+        favorite_search_query=favorite_search_query,
+        result_index=0,
         note_venue_id=None,
     )
     await state.set_state(None)
@@ -1124,9 +1152,17 @@ async def favorite_note_text(
         if isinstance(all_results_raw, list)
         else updated_results
     )
+    (
+        updated_results,
+        favorite_filter,
+        favorite_search_query,
+    ) = _coherent_favorite_view(data, updated_all_results)
     await state.update_data(
         results=updated_results,
         favorite_all_results=updated_all_results,
+        favorite_filter=favorite_filter,
+        favorite_search_query=favorite_search_query,
+        result_index=0,
         note_venue_id=None,
     )
     await state.set_state(None)
@@ -1239,23 +1275,11 @@ async def favorite_tag_toggle(
         for item in all_results
     ]
 
-    active_filter = (
-        data.get("favorite_filter")
-        if isinstance(data.get("favorite_filter"), str)
-        else None
-    )
-    filtered_results = (
-        [
-            item
-            for item in updated_all_results
-            if active_filter in tuple(item.get("personal_tags", ()))
-        ]
-        if active_filter in FAVORITE_TAG_LABELS
-        else updated_all_results
-    )
-    if not filtered_results and active_filter in FAVORITE_TAG_LABELS:
-        active_filter = None
-        filtered_results = updated_all_results
+    (
+        filtered_results,
+        active_filter,
+        active_search_query,
+    ) = _coherent_favorite_view(data, updated_all_results)
 
     index = data.get("result_index", 0)
     if not isinstance(index, int):
@@ -1266,6 +1290,7 @@ async def favorite_tag_toggle(
         results=filtered_results,
         result_index=index,
         favorite_filter=active_filter,
+        favorite_search_query=active_search_query,
     )
 
     await callback.answer(
