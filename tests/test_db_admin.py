@@ -1,12 +1,17 @@
+import asyncio
+import json
 import sqlite3
 from pathlib import Path
 
 import pytest
 
+from app.database import initialize_database
 from app.db_admin import (
     DatabaseAdminError,
+    audit_database,
     backup_database,
     inspect_database,
+    repair_favorite_aliases,
     restore_database,
     verify_database,
 )
@@ -203,3 +208,166 @@ def test_inspect_database_tolerates_legacy_missing_app_tables(tmp_path: Path) ->
     assert inspection.favorite_aliases is None
     assert inspection.ratings is None
     assert inspection.provider_budget_rows is None
+
+
+
+def _create_auditable_database(path: Path) -> None:
+    asyncio.run(initialize_database(str(path)))
+    payload = json.dumps(
+        {
+            "id": "geoapify:place-audit",
+            "source": "geoapify",
+            "source_id": "place-audit",
+            "source_refs": [
+                {"provider": "geoapify", "source_id": "place-audit"},
+                {"provider": "osm", "source_id": "node/audit"},
+            ],
+        }
+    )
+    with sqlite3.connect(path) as connection:
+        connection.execute(
+            """
+            INSERT INTO favorites (user_id, venue_id, payload)
+            VALUES (10, 'geoapify:place-audit', ?)
+            """,
+            (payload,),
+        )
+        connection.executemany(
+            """
+            INSERT INTO favorite_identity_aliases (
+                user_id,
+                venue_id,
+                identity_key
+            )
+            VALUES (?, ?, ?)
+            """,
+            [
+                (10, "geoapify:place-audit", "geoapify:place-audit"),
+                (10, "geoapify:place-audit", "osm:node/audit"),
+            ],
+        )
+        connection.commit()
+
+
+def test_audit_database_reports_consistent_alias_index(tmp_path: Path) -> None:
+    database = tmp_path / "permplaces.db"
+    _create_auditable_database(database)
+
+    audit = audit_database(database)
+
+    assert audit.consistent is True
+    assert audit.favorites == 1
+    assert audit.expected_aliases == 2
+    assert audit.actual_aliases == 2
+    assert audit.missing_aliases == 0
+    assert audit.unexpected_aliases == 0
+    assert audit.orphan_aliases == 0
+
+
+def test_audit_database_detects_missing_unexpected_and_orphan_aliases(
+    tmp_path: Path,
+) -> None:
+    database = tmp_path / "permplaces.db"
+    _create_auditable_database(database)
+
+    with sqlite3.connect(database) as connection:
+        connection.execute("DELETE FROM favorite_identity_aliases")
+        connection.executemany(
+            """
+            INSERT INTO favorite_identity_aliases (
+                user_id,
+                venue_id,
+                identity_key
+            )
+            VALUES (?, ?, ?)
+            """,
+            [
+                (10, "geoapify:place-audit", "geoapify:wrong"),
+                (10, "missing-favorite", "osm:orphan"),
+            ],
+        )
+        connection.commit()
+
+    audit = audit_database(database)
+
+    assert audit.consistent is False
+    assert audit.missing_aliases == 2
+    assert audit.unexpected_aliases == 2
+    assert audit.orphan_aliases == 1
+
+
+def test_repair_favorite_aliases_requires_stopped_confirmation(
+    tmp_path: Path,
+) -> None:
+    database = tmp_path / "permplaces.db"
+    _create_auditable_database(database)
+
+    with pytest.raises(DatabaseAdminError, match="confirm-stopped"):
+        repair_favorite_aliases(database, confirm_stopped=False)
+
+
+def test_repair_favorite_aliases_rebuilds_index_and_keeps_backup(
+    tmp_path: Path,
+) -> None:
+    database = tmp_path / "permplaces.db"
+    _create_auditable_database(database)
+
+    with sqlite3.connect(database) as connection:
+        connection.execute("DELETE FROM favorite_identity_aliases")
+        connection.execute(
+            """
+            INSERT INTO favorite_identity_aliases (
+                user_id,
+                venue_id,
+                identity_key
+            )
+            VALUES (10, 'missing-favorite', 'osm:orphan')
+            """
+        )
+        connection.execute(
+            """
+            INSERT INTO venue_ratings (
+                user_id,
+                venue_key,
+                score,
+                updated_at_ns
+            )
+            VALUES (10, 'osm:node/audit', 5, 123)
+            """
+        )
+        connection.commit()
+
+    safety_backup = repair_favorite_aliases(
+        database,
+        confirm_stopped=True,
+    )
+
+    assert safety_backup.is_file()
+    assert audit_database(database).consistent is True
+
+    with sqlite3.connect(database) as connection:
+        aliases = connection.execute(
+            """
+            SELECT identity_key
+            FROM favorite_identity_aliases
+            WHERE user_id = 10
+            ORDER BY identity_key
+            """
+        ).fetchall()
+        favorites = connection.execute(
+            "SELECT COUNT(*) FROM favorites"
+        ).fetchone()
+        ratings = connection.execute(
+            "SELECT COUNT(*) FROM venue_ratings"
+        ).fetchone()
+
+    assert aliases == [
+        ("geoapify:place-audit",),
+        ("osm:node/audit",),
+    ]
+    assert favorites == (1,)
+    assert ratings == (1,)
+
+    backup_audit = audit_database(safety_backup)
+    assert backup_audit.consistent is False
+    assert backup_audit.orphan_aliases == 1
