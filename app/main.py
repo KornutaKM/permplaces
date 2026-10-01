@@ -25,7 +25,6 @@ from app.providers.foursquare import FoursquareProvider
 from app.providers.geoapify import GeoapifyProvider
 from app.providers.overpass import OverpassProvider
 from app.providers.twogis import TwoGISProvider
-from app.privacy import UserDataRepository
 from app.ratings import RatingsRepository
 from app.search import SearchService
 from app.storage import FavoritesRepository
