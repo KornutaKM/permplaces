@@ -41,6 +41,15 @@ overlapping identities are suppressed.
 The historical rows are not rewritten during read. A later favorite toggle for the merged venue
 removes every matching alias row in the same transaction.
 
+## Personal notes
+
+A saved favorite can have one private personal note. Notes use the same exact provider identity
+keys as favorites, remain separate from the provider-backed favorite snapshot, and are never
+treated as venue provenance.
+
+Removing a favorite removes notes attached to all known aliases for that favorite in the same
+transaction. See `docs/FAVORITE_NOTES.md`.
+
 ## Safety
 
 Alias matching is scoped by Telegram user ID. Two different users never affect each other's
