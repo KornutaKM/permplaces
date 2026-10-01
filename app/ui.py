@@ -10,6 +10,7 @@ from aiogram.types import (
 
 from app.data import Venue
 from app.districts import PERM_DISTRICTS
+from app.favorite_sort import DEFAULT_FAVORITE_SORT, FAVORITE_SORT_LABELS
 from app.tags import FAVORITE_TAG_KEYS, FAVORITE_TAG_LABELS
 
 CATEGORY_LABELS = {
@@ -159,6 +160,7 @@ def results_keyboard(
     favorites_mode: bool = False,
     active_favorite_tag: str | None = None,
     favorite_search_active: bool = False,
+    active_favorite_sort: str = DEFAULT_FAVORITE_SORT,
 ) -> InlineKeyboardMarkup:
     navigation: list[InlineKeyboardButton] = []
     if can_previous:
@@ -206,6 +208,18 @@ def results_keyboard(
                     )
                 ]
             )
+        sort_label = FAVORITE_SORT_LABELS.get(
+            active_favorite_sort,
+            FAVORITE_SORT_LABELS[DEFAULT_FAVORITE_SORT],
+        )
+        rows.append(
+            [
+                InlineKeyboardButton(
+                    text=f"↕️ Сортировка: {sort_label}",
+                    callback_data="fso:menu",
+                )
+            ]
+        )
     if navigation:
         rows.append(navigation)
     rows.append([InlineKeyboardButton(text="← К категориям", callback_data="nav:categories")])
@@ -367,6 +381,31 @@ def favorite_note_keyboard(
         ]
     )
     return InlineKeyboardMarkup(inline_keyboard=rows)
+
+
+def favorite_sort_keyboard(
+    *,
+    active_sort: str,
+) -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                InlineKeyboardButton(
+                    text=("✅ " if active_sort == key else "") + label,
+                    callback_data=f"fso:{key}",
+                )
+            ]
+            for key, label in FAVORITE_SORT_LABELS.items()
+        ]
+        + [
+            [
+                InlineKeyboardButton(
+                    text="← К результатам",
+                    callback_data="results:current",
+                )
+            ]
+        ]
+    )
 
 
 def favorite_search_keyboard() -> InlineKeyboardMarkup:

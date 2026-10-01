@@ -15,6 +15,11 @@ from app.favorite_search import (
     MAX_FAVORITE_SEARCH_LENGTH,
     search_favorites,
 )
+from app.favorite_sort import (
+    DEFAULT_FAVORITE_SORT,
+    FAVORITE_SORT_LABELS,
+    sort_favorites,
+)
 from app.filters import PlaceFilters
 from app.notes import MAX_PERSONAL_NOTE_LENGTH, NotesRepository
 from app.privacy import USER_DATA_EXPORT_FILENAME, UserDataRepository
@@ -44,6 +49,7 @@ from app.ui import (
     favorite_filter_keyboard,
     favorite_note_keyboard,
     favorite_search_keyboard,
+    favorite_sort_keyboard,
     favorite_tags_keyboard,
     filters_keyboard,
     home_keyboard,
@@ -235,13 +241,16 @@ def _favorite_view_results(
 
     active_tag = data.get("favorite_filter")
     if isinstance(active_tag, str) and active_tag in FAVORITE_TAG_LABELS:
-        return [
-            asdict(venue)
+        venues = [
+            venue
             for venue in venues
             if active_tag in venue.personal_tags
         ]
 
-    return [asdict(venue) for venue in venues]
+    sort_key = data.get("favorite_sort")
+    if not isinstance(sort_key, str):
+        sort_key = DEFAULT_FAVORITE_SORT
+    return [asdict(venue) for venue in sort_favorites(venues, sort_key)]
 
 
 def _coherent_favorite_view(
@@ -320,6 +329,11 @@ async def _edit_current_result(callback: CallbackQuery, state: FSMContext) -> No
             favorite_search_active=(
                 data.get("category") == "favorites"
                 and isinstance(search_query, str)
+            ),
+            active_favorite_sort=(
+                data.get("favorite_sort")
+                if isinstance(data.get("favorite_sort"), str)
+                else DEFAULT_FAVORITE_SORT
             ),
         ),
         disable_web_page_preview=True,
@@ -620,6 +634,7 @@ async def favorites(
         favorite_all_results=all_results,
         favorite_filter=None,
         favorite_search_query=None,
+        favorite_sort=DEFAULT_FAVORITE_SORT,
         result_index=0,
         category="favorites",
         result_scenario=None,
@@ -633,6 +648,7 @@ async def favorites(
             can_previous=False,
             can_next=len(venues) > 1,
             favorites_mode=True,
+            active_favorite_sort=DEFAULT_FAVORITE_SORT,
         ),
         disable_web_page_preview=True,
     )
@@ -952,6 +968,11 @@ async def favorite(
                     favorite_search_active=isinstance(
                         favorite_search_query,
                         str,
+                    ),
+                    active_favorite_sort=(
+                        data.get("favorite_sort")
+                        if isinstance(data.get("favorite_sort"), str)
+                        else DEFAULT_FAVORITE_SORT
                     ),
                 ),
                 disable_web_page_preview=True,
@@ -1366,15 +1387,10 @@ async def favorite_filter_selected(
         if isinstance(item, dict)
     ]
     active = None if selected == "all" else selected
-    filtered = (
-        [
-            item
-            for item in all_results
-            if active in tuple(item.get("personal_tags", ()))
-        ]
-        if active is not None
-        else all_results
-    )
+    view_data = dict(data)
+    view_data["favorite_filter"] = active
+    view_data["favorite_search_query"] = None
+    filtered = _favorite_view_results(view_data, all_results)
 
     if not filtered:
         await callback.answer("С этой меткой пока нет мест.")
@@ -1447,9 +1463,13 @@ async def favorite_search_clear(
         for item in all_results_raw
         if isinstance(item, dict)
     ]
+    view_data = dict(data)
+    view_data["favorite_filter"] = None
+    view_data["favorite_search_query"] = None
+    results = _favorite_view_results(view_data, all_results)
     await state.set_state(None)
     await state.update_data(
-        results=all_results,
+        results=results,
         result_index=0,
         favorite_filter=None,
         favorite_search_query=None,
@@ -1517,9 +1537,85 @@ async def favorite_search_text(
             can_next=len(matches) > 1,
             favorites_mode=True,
             favorite_search_active=True,
+            active_favorite_sort=(
+                data.get("favorite_sort")
+                if isinstance(data.get("favorite_sort"), str)
+                else DEFAULT_FAVORITE_SORT
+            ),
         ),
         disable_web_page_preview=True,
     )
+
+
+@router.callback_query(F.data == "fso:menu")
+async def favorite_sort_menu(
+    callback: CallbackQuery,
+    state: FSMContext,
+) -> None:
+    await callback.answer()
+    if not callback.message:
+        return
+
+    data = await state.get_data()
+    all_results = data.get("favorite_all_results")
+    if data.get("category") != "favorites" or not isinstance(all_results, list):
+        await callback.message.answer(
+            "Сортировка доступна только для актуального списка избранного."
+        )
+        return
+
+    active_sort = (
+        data.get("favorite_sort")
+        if isinstance(data.get("favorite_sort"), str)
+        else DEFAULT_FAVORITE_SORT
+    )
+    await callback.message.edit_reply_markup(
+        reply_markup=favorite_sort_keyboard(
+            active_sort=active_sort,
+        )
+    )
+
+
+@router.callback_query(F.data.startswith("fso:"))
+async def favorite_sort_selected(
+    callback: CallbackQuery,
+    state: FSMContext,
+) -> None:
+    if not callback.data:
+        return
+
+    sort_key = callback.data.split(":", 1)[1]
+    if sort_key not in FAVORITE_SORT_LABELS:
+        await callback.answer("Неизвестная сортировка.")
+        return
+
+    data = await state.get_data()
+    all_results_raw = data.get("favorite_all_results")
+    if data.get("category") != "favorites" or not isinstance(all_results_raw, list):
+        await callback.answer("Список избранного устарел.")
+        return
+
+    all_results = [
+        item
+        for item in all_results_raw
+        if isinstance(item, dict)
+    ]
+    view_data = dict(data)
+    view_data["favorite_sort"] = sort_key
+    view_data["favorite_search_query"] = None
+    results = _favorite_view_results(view_data, all_results)
+    if not results:
+        await callback.answer("В текущем фильтре нет мест.")
+        return
+
+    await state.update_data(
+        results=results,
+        result_index=0,
+        favorite_sort=sort_key,
+        favorite_search_query=None,
+    )
+    await callback.answer(f"Сортировка: {FAVORITE_SORT_LABELS[sort_key]}")
+    await _edit_current_result(callback, state)
 
 
 @router.callback_query(F.data.startswith("rate:"))
