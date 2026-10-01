@@ -59,3 +59,4 @@ class Venue:
     community_rating: float | None = None
     community_rating_count: int | None = None
     personal_note: str | None = None
+    personal_tags: tuple[str, ...] = ()
