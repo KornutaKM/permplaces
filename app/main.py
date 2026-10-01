@@ -7,6 +7,7 @@ from aiogram.enums import ParseMode
 
 from app.bot import router
 from app.config import load_settings
+from app.database import initialize_database
 from app.health import HealthServer
 from app.providers.budget import DailyBudgetPlacesProvider, SQLiteDailyRequestBudget
 from app.providers.cache import CachedPlacesProvider
@@ -173,10 +174,7 @@ async def main() -> None:
 
     try:
         await health_server.start()
-        await favorites_repository.initialize()
-        await ratings_repository.initialize()
-        if geoapify_budget is not None:
-            await geoapify_budget.initialize()
+        await initialize_database(settings.database_path)
         health_server.state.mark_ready()
 
         logger.info(
