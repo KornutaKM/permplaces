@@ -264,6 +264,20 @@ def share_venue_url(venue: Venue) -> str:
     )
 
 
+def rating_keyboard(venue_id: str) -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                InlineKeyboardButton(
+                    text=f"{score} ⭐",
+                    callback_data=f"rating:{score}:{venue_id}",
+                )
+                for score in range(1, 6)
+            ]
+        ]
+    )
+
+
 def venue_keyboard(venue: Venue) -> InlineKeyboardMarkup:
     primary_actions = [
         InlineKeyboardButton(text="📍 Маршрут", callback_data=f"route:{venue.id}")
@@ -278,6 +292,14 @@ def venue_keyboard(venue: Venue) -> InlineKeyboardMarkup:
     if website_url:
         rows.append([InlineKeyboardButton(text="🌐 Сайт", url=website_url)])
 
+    rows.append(
+        [
+            InlineKeyboardButton(
+                text="⭐ Оценить",
+                callback_data=f"rate:{venue.id}",
+            )
+        ]
+    )
     rows.append(
         [
             InlineKeyboardButton(
@@ -318,6 +340,17 @@ def render_venue_card(venue: Venue, *, position: int = 1, total: int = 1) -> str
         if venue.review_count is not None:
             rating += f" ({venue.review_count})"
         lines.append(rating)
+
+    if (
+        venue.community_rating is not None
+        and venue.community_rating_count is not None
+        and venue.community_rating_count > 0
+    ):
+        lines.append(
+            "👥 PermPlaces: "
+            f"{venue.community_rating:.1f}/5 "
+            f"({venue.community_rating_count})"
+        )
 
     details = [escape(venue.category_label)]
     if venue.price_label:

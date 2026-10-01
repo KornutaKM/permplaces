@@ -22,6 +22,8 @@ async def test_favorites_survive_repository_recreation(tmp_path) -> None:
         distance_m=350,
         is_open_now=True,
         is_open_late=True,
+        community_rating=4.5,
+        community_rating_count=12,
     )
 
     repository = FavoritesRepository(str(database_path))
@@ -40,6 +42,8 @@ async def test_favorites_survive_repository_recreation(tmp_path) -> None:
     assert favorites[0].distance_m is None
     assert favorites[0].is_open_now is None
     assert favorites[0].is_open_late is None
+    assert favorites[0].community_rating is None
+    assert favorites[0].community_rating_count is None
 
 
 @pytest.mark.asyncio

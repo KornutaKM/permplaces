@@ -5,6 +5,7 @@ from app.data import Venue
 from app.filters import PlaceFilters
 from app.opening import OpeningState, late_evening_reference, opening_state
 from app.providers.base import PlacesProvider
+from app.ratings import RatingsRepository
 
 
 def distance_m(
@@ -67,8 +68,18 @@ def _filter_opening(
 
 
 class SearchService:
-    def __init__(self, provider: PlacesProvider) -> None:
+    def __init__(
+        self,
+        provider: PlacesProvider,
+        ratings_repository: RatingsRepository | None = None,
+    ) -> None:
         self._provider = provider
+        self._ratings_repository = ratings_repository
+
+    async def _with_community_ratings(self, venues: list[Venue]) -> list[Venue]:
+        if self._ratings_repository is None:
+            return venues
+        return await self._ratings_repository.enrich_many(venues)
 
     async def nearby(
         self,
@@ -112,10 +123,11 @@ class SearchService:
             for venue in with_distance
             if venue.distance_m is not None and venue.distance_m <= radius_m
         ]
-        return sorted(
+        selected = sorted(
             in_radius,
             key=lambda venue: (venue.distance_m or 0, venue.name.casefold()),
         )[:limit]
+        return await self._with_community_ratings(selected)
 
     async def in_district(
         self,
@@ -142,7 +154,8 @@ class SearchService:
             replace(venue, district=district_name, distance_m=None)
             for venue in candidates
         ]
-        return sorted(
+        selected = sorted(
             normalized,
             key=lambda venue: (venue.name.casefold(), venue.source_id),
         )[:limit]
+        return await self._with_community_ratings(selected)

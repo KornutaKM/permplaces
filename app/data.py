@@ -56,3 +56,5 @@ class Venue:
     rating: float | None = None
     rating_scale: float | None = None
     review_count: int | None = None
+    community_rating: float | None = None
+    community_rating_count: int | None = None
