@@ -6,6 +6,7 @@ from collections.abc import Awaitable, Callable, Sequence
 from app.data import Venue
 from app.filters import PlaceFilters
 from app.providers.base import PlacesProvider, ProviderError
+from app.providers.capabilities import ProviderCapabilities, provider_capabilities
 
 logger = logging.getLogger(__name__)
 
@@ -17,6 +18,13 @@ class FailoverPlacesProvider:
         if not providers:
             raise ValueError("at least one provider is required")
         self._providers = tuple(providers)
+
+    @property
+    def capabilities(self) -> ProviderCapabilities:
+        # Production failover chains contain equivalent Overpass adapters.
+        # Expose the first contract so wrappers remain routable without leaking
+        # endpoint details into the capability layer.
+        return provider_capabilities(self._providers[0])
 
     async def search_nearby(
         self,
