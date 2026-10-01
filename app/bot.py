@@ -336,7 +336,7 @@ async def text_search(
         )
     except ProviderError:
         await message.answer(
-            "Сервис OpenStreetMap сейчас не ответил. Попробуйте ещё раз чуть позже."
+            "Источники мест сейчас не ответили. Попробуйте ещё раз чуть позже."
         )
         return
 
@@ -437,8 +437,9 @@ async def nav_filters(callback: CallbackQuery, state: FSMContext) -> None:
     await callback.message.edit_text(
         "<b>Настройте фильтры</b>\n\n"
         f"{scope_note}\n"
-        "🌿 Веранда, 📶 Wi-Fi и 👨‍👩‍👧 «Для детей» — только по явным тегам OSM.\n"
-        "🟢 «Открыто сейчас» и 🌙 «Открыто в 23:00» вычисляются по OSM opening_hours.",
+        "🌿/📶/👨‍👩‍👧 фильтры применяются только к источникам, которые умеют "
+        "подтверждать соответствующий признак.\n"
+        "🟢/🌙 время работы также проверяется только по подтверждаемым данным.",
         reply_markup=filters_keyboard(
             radius_m=(
                 data.get("radius_m")
@@ -516,7 +517,7 @@ async def category_selected(
         )
     except ProviderError:
         await callback.message.edit_text(
-            "OpenStreetMap сейчас не ответил. Вернитесь к категориям и попробуйте ещё раз.",
+            "Источники мест сейчас не ответили. Вернитесь к категориям и попробуйте ещё раз.",
             reply_markup=categories_keyboard(),
         )
         return
@@ -530,7 +531,7 @@ async def category_selected(
     if not venues:
         await callback.message.edit_text(
             f"<b>{label}</b>\n\n"
-            "В выбранной области OpenStreetMap не вернул подходящих мест.",
+            "В выбранной области источники не вернули подходящих мест.",
             reply_markup=categories_keyboard(),
         )
         return
@@ -751,7 +752,7 @@ async def scenario(
         )
     except ProviderError:
         await callback.message.edit_text(
-            "OpenStreetMap сейчас не ответил.",
+            "Источники мест сейчас не ответили.",
             reply_markup=categories_keyboard(),
         )
         return
