@@ -59,3 +59,15 @@ v0.25 keeps OpenStreetMap/Overpass as the primary provider and exact district-bo
 Geoapify records retain `provider=geoapify` even though the underlying Places data is primarily OSM/open data. Cards containing Geoapify data therefore show both the required OpenStreetMap attribution and `Powered by Geoapify` on the free plan.
 
 See `docs/GEOAPIFY.md` for category, filter and credit-budget contracts.
+
+v0.26 adds a static provider capability contract before aggregation. Unsupported categories,
+filters and district modes are skipped before an upstream request instead of relying only on
+adapter-local no-op behavior. This keeps fail-closed semantics explicit and reduces unnecessary
+paid/free quota use.
+
+Dedup v2 keeps provider priority deterministic but records corroborating `FieldSource` entries
+when multiple providers return the same retained field value. Different values are never marked
+as corroboration. Shared chain websites and generic venue-type names are not sufficient identity
+signals by themselves; address/proximity constraints remain mandatory.
+
+See `docs/PROVIDERS.md` for the complete routing and identity contract.
