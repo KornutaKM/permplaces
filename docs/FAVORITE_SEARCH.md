@@ -44,8 +44,10 @@ favorites list remains available for clearing search or switching to a tag filte
 `🧹 Сбросить поиск` restores the complete favorite list using the currently selected local
 favorite sort mode.
 
-Text-search relevance ranking takes priority while a query is active. Choosing an explicit sort
-clears the text query before applying that sort. See `docs/FAVORITE_SORTING.md`.
+Text-search relevance ranking takes priority while a query is active. A successful new text search
+clears personal-tag/category/district filters so the visible result set cannot disagree with local
+filter state. Choosing an explicit sort or category/district facet clears the text query before
+applying that local view. See `docs/FAVORITE_SORTING.md` and `docs/FAVORITE_FACETS.md`.
 
 ## Privacy and provider behavior
 
