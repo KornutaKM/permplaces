@@ -32,6 +32,11 @@ class Settings(BaseSettings):
         default=10.0,
         alias="GEOAPIFY_TIMEOUT_SECONDS",
     )
+    geoapify_daily_request_budget: int = Field(
+        default=2500,
+        alias="GEOAPIFY_DAILY_REQUEST_BUDGET",
+        ge=1,
+    )
     twogis_api_key: str = Field(default="", alias="TWOGIS_API_KEY")
     twogis_url: str = Field(
         default="https://catalog.api.2gis.com/3.0/items",
