@@ -34,6 +34,24 @@ returns only aggregate counts for the current Telegram user:
 It does not print the Telegram user ID, favorite payloads, coordinates, provider keys or other
 users' counts.
 
+## Exporting your stored data
+
+When persistent data exists, `/mydata` also shows `📦 Скачать JSON`. The export is scoped to the
+current Telegram user and contains their saved favorite snapshots plus their community-rating
+rows.
+
+The export does not embed the Telegram user ID, API keys, provider budget counters, current
+search/FSM state, search history or location history. Valid favorite snapshots can include venue
+coordinates/address/provenance because those are stored attributes of the saved place, not a
+history of the user's own location.
+
+Malformed historical favorite payloads are represented as invalid rows without echoing the raw
+payload content. The export is generated in memory and sent as a Telegram document; PermPlaces does
+not persist a second export file on the host.
+
+See `docs/DATA_EXPORT.md` for the versioned JSON schema. Telegram's own retention of the delivered
+message/document is outside the PermPlaces SQLite contract.
+
 ## Deleting your stored data
 
 If persistent data exists, `/mydata` shows an explicit delete action. Deletion requires a second
