@@ -11,6 +11,7 @@ from app.data import Venue
 from app.filters import PlaceFilters
 from app.observability import endpoint_label
 from app.providers.base import ProviderError
+from app.providers.capabilities import OVERPASS_CAPABILITIES
 
 logger = logging.getLogger(__name__)
 
@@ -229,6 +230,8 @@ def _wifi(tags: Mapping[str, Any]) -> bool | None:
 
 
 class OverpassProvider:
+    capabilities = OVERPASS_CAPABILITIES
+
     def __init__(
         self,
         *,
