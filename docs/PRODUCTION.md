@@ -35,6 +35,7 @@ Optional provider keys remain opt-in:
 
 ```env
 GEOAPIFY_API_KEY=
+GEOAPIFY_DAILY_REQUEST_BUDGET=2500
 TWOGIS_API_KEY=
 FOURSQUARE_API_KEY=
 ```
@@ -129,6 +130,8 @@ docker compose cp \
   "bot:/app/data/backups/permplaces-$STAMP.db" \
   "./backups/permplaces-$STAMP.db"
 ```
+
+The same SQLite backup also contains community ratings and the persistent provider budget counters.
 
 Keep copied backups outside the Docker host as part of the operator's normal backup policy.
 The repository intentionally does not prescribe a storage vendor.
