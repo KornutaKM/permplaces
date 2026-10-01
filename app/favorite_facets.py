@@ -23,6 +23,8 @@ class FavoriteFacets:
     categories: tuple[FavoriteFacetOption, ...]
     districts: tuple[FavoriteFacetOption, ...]
     missing_district: int
+    cuisines: tuple[FavoriteFacetOption, ...]
+    missing_cuisine: int
 
 
 def _clean(value: str | None) -> str | None:
@@ -71,6 +73,9 @@ def build_favorite_facets(venues: list[Venue]) -> FavoriteFacets:
     district_counts: Counter[str] = Counter()
     district_labels: dict[str, str] = {}
     missing_district = 0
+    cuisine_counts: Counter[str] = Counter()
+    cuisine_labels: dict[str, str] = {}
+    missing_cuisine = 0
 
     for venue in venues:
         category = _clean(venue.category)
@@ -89,6 +94,22 @@ def build_favorite_facets(venues: list[Venue]) -> FavoriteFacets:
             district_counts[district] += 1
             district_labels.setdefault(district, district)
 
+        normalized_cuisines: set[str] = set()
+        for raw_cuisine in venue.cuisine:
+            cleaned_cuisine = _clean(raw_cuisine)
+            if cleaned_cuisine is None:
+                continue
+            normalized_cuisine = cleaned_cuisine.casefold()
+            normalized_cuisines.add(normalized_cuisine)
+            cuisine_labels.setdefault(
+                normalized_cuisine,
+                cleaned_cuisine,
+            )
+        if not normalized_cuisines:
+            missing_cuisine += 1
+        else:
+            cuisine_counts.update(normalized_cuisines)
+
     return FavoriteFacets(
         categories=_ranked_options(
             namespace="category",
@@ -101,6 +122,12 @@ def build_favorite_facets(venues: list[Venue]) -> FavoriteFacets:
             labels=district_labels,
         ),
         missing_district=missing_district,
+        cuisines=_ranked_options(
+            namespace="cuisine",
+            counts=cuisine_counts,
+            labels=cuisine_labels,
+        ),
+        missing_cuisine=missing_cuisine,
     )
 
 
@@ -128,12 +155,26 @@ def district_from_token(
     return matches[0] if len(matches) == 1 else None
 
 
+def cuisine_from_token(
+    facets: FavoriteFacets,
+    token: str,
+) -> str | None:
+    matches = [
+        option.value
+        for option in facets.cuisines
+        if option.token == token
+    ]
+    return matches[0] if len(matches) == 1 else None
+
+
 def filter_favorites_by_facets(
     venues: list[Venue],
     *,
     category: str | None,
     district: str | None,
     district_missing: bool,
+    cuisine: str | None,
+    cuisine_missing: bool,
 ) -> list[Venue]:
     result: list[Venue] = []
     for venue in venues:
@@ -145,6 +186,17 @@ def filter_favorites_by_facets(
             if cleaned_district is not None:
                 continue
         elif district is not None and cleaned_district != district:
+            continue
+
+        venue_cuisines = {
+            cleaned.casefold()
+            for value in venue.cuisine
+            if (cleaned := _clean(value)) is not None
+        }
+        if cuisine_missing:
+            if venue_cuisines:
+                continue
+        elif cuisine is not None and cuisine not in venue_cuisines:
             continue
 
         result.append(venue)
