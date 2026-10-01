@@ -7,6 +7,32 @@ import aiosqlite
 
 SCHEMA_VERSION = 4
 
+REQUIRED_TABLE_COLUMNS: dict[str, frozenset[str]] = {
+    "favorites": frozenset({"user_id", "venue_id", "payload", "created_at"}),
+    "venue_ratings": frozenset(
+        {"user_id", "venue_key", "score", "updated_at_ns"}
+    ),
+    "provider_daily_request_budget": frozenset({"provider", "day", "used"}),
+    "favorite_identity_aliases": frozenset(
+        {"user_id", "venue_id", "identity_key"}
+    ),
+    "favorite_notes": frozenset(
+        {"user_id", "identity_key", "note", "updated_at_ns"}
+    ),
+    "favorite_tags": frozenset(
+        {"user_id", "identity_key", "tag", "updated_at_ns"}
+    ),
+}
+
+REQUIRED_INDEXES = frozenset(
+    {
+        "idx_venue_ratings_venue_key",
+        "idx_favorite_identity_aliases_lookup",
+        "idx_favorite_notes_identity_key",
+        "idx_favorite_tags_identity_key",
+    }
+)
+
 
 class DatabaseSchemaError(RuntimeError):
     pass
@@ -153,12 +179,12 @@ async def initialize_database(database_path: str) -> None:
             await _require_columns(
                 database,
                 "favorites",
-                {"user_id", "venue_id", "payload", "created_at"},
+                set(REQUIRED_TABLE_COLUMNS["favorites"]),
             )
             await _require_columns(
                 database,
                 "venue_ratings",
-                {"user_id", "venue_key", "score", "updated_at_ns"},
+                set(REQUIRED_TABLE_COLUMNS["venue_ratings"]),
             )
             await database.execute(
                 """
@@ -179,7 +205,7 @@ async def initialize_database(database_path: str) -> None:
             await _require_columns(
                 database,
                 "provider_daily_request_budget",
-                {"provider", "day", "used"},
+                set(REQUIRED_TABLE_COLUMNS["provider_daily_request_budget"]),
             )
             await database.execute(
                 """
@@ -218,17 +244,17 @@ async def initialize_database(database_path: str) -> None:
             await _require_columns(
                 database,
                 "favorite_identity_aliases",
-                {"user_id", "venue_id", "identity_key"},
+                set(REQUIRED_TABLE_COLUMNS["favorite_identity_aliases"]),
             )
             await _require_columns(
                 database,
                 "favorite_notes",
-                {"user_id", "identity_key", "note", "updated_at_ns"},
+                set(REQUIRED_TABLE_COLUMNS["favorite_notes"]),
             )
             await _require_columns(
                 database,
                 "favorite_tags",
-                {"user_id", "identity_key", "tag", "updated_at_ns"},
+                set(REQUIRED_TABLE_COLUMNS["favorite_tags"]),
             )
             await database.execute(
                 """
