@@ -5,6 +5,7 @@ from app.ui import (
     delete_data_confirmation_keyboard,
     favorite_filter_keyboard,
     favorite_note_keyboard,
+    favorite_overview_keyboard,
     favorite_search_keyboard,
     favorite_sort_keyboard,
     favorite_tags_keyboard,
@@ -869,3 +870,42 @@ def test_favorites_results_keyboard_shows_current_sort() -> None:
     ]
 
     assert "↕️ Сортировка: 🔤 По названию" in labels
+
+
+
+def test_favorite_overview_keyboard_exposes_local_management_actions() -> None:
+    keyboard = favorite_overview_keyboard(active_sort="tags")
+    buttons = [
+        button
+        for row in keyboard.inline_keyboard
+        for button in row
+    ]
+    labels = [button.text for button in buttons]
+    callbacks = [button.callback_data for button in buttons]
+
+    assert "🏷 Фильтр по метке" in labels
+    assert "🔎 Поиск в избранном" in labels
+    assert "↕️ Сортировка: 🏷 Сначала с метками" in labels
+    assert "← К результатам" in labels
+    assert callbacks == ["ff:menu", "fs:start", "fso:menu", "results:current"]
+
+
+def test_favorite_results_keyboard_exposes_overview() -> None:
+    keyboard = results_keyboard(
+        "osm:node/overview",
+        can_previous=False,
+        can_next=False,
+        favorites_mode=True,
+    )
+    buttons = [
+        button
+        for row in keyboard.inline_keyboard
+        for button in row
+    ]
+
+    overview = next(
+        button
+        for button in buttons
+        if button.callback_data == "fo:overview"
+    )
+    assert overview.text == "📊 Обзор избранного"
