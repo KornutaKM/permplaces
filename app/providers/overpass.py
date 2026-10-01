@@ -12,6 +12,7 @@ from app.filters import PlaceFilters
 from app.observability import endpoint_label
 from app.providers.base import ProviderError
 from app.providers.capabilities import OVERPASS_CAPABILITIES
+from app.version import PERMPLACES_USER_AGENT
 
 logger = logging.getLogger(__name__)
 
@@ -244,7 +245,7 @@ class OverpassProvider:
         self._owns_client = client is None
         self._client = client or httpx.AsyncClient(
             timeout=httpx.Timeout(timeout_seconds),
-            headers={"User-Agent": "PermPlaces/0.43 (+https://github.com/KornutaKM/permplaces)"},
+            headers={"User-Agent": PERMPLACES_USER_AGENT},
         )
 
     async def close(self) -> None:
