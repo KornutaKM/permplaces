@@ -167,3 +167,45 @@ async def test_remove_note_handler_clears_storage_and_result_state(tmp_path) -> 
     assert state.state is None
     callback.answer.assert_awaited_once_with("Заметка удалена")
     edit_text.assert_awaited_once_with("📝 Заметка удалена.")
+
+
+
+@pytest.mark.asyncio
+async def test_note_text_handler_fails_closed_when_favorite_was_removed(
+    tmp_path,
+) -> None:
+    path = str(tmp_path / "permplaces.db")
+    favorites = FavoritesRepository(path)
+    notes = NotesRepository(path)
+    item = venue()
+    await favorites.initialize()
+    await favorites.toggle(user_id=503, venue=item)
+
+    state = FakeState(
+        {
+            "category": "favorites",
+            "results": [asdict(item)],
+            "note_venue_id": item.id,
+        }
+    )
+
+    # Simulate the favorite being removed after the note editor was opened.
+    await favorites.toggle(user_id=503, venue=item)
+
+    message = SimpleNamespace(
+        from_user=SimpleNamespace(id=503),
+        text="Не должна сохраниться",
+        answer=AsyncMock(),
+    )
+
+    await favorite_note_text(
+        message,  # type: ignore[arg-type]
+        state,  # type: ignore[arg-type]
+        notes,
+    )
+
+    assert await notes.get_for_venue(user_id=503, venue=item) is None
+    assert state.state is None
+    assert state.data["note_venue_id"] is None
+    rendered = message.answer.await_args.args[0]
+    assert "Избранное изменилось" in rendered
