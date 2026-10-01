@@ -68,6 +68,15 @@ provider provenance and does not persist a search-history row.
 
 Matching and deterministic ranking are documented in `docs/FAVORITE_SEARCH.md`.
 
+## Local sorting
+
+The visible favorites view can be sorted locally by repository order, normalized name, presence of
+a personal note or count of known personal tags. Sorting composes with tag filtering and does not
+contact external providers.
+
+External provider ratings are not used as a cross-provider sort key because their scales are not
+assumed to be comparable. See `docs/FAVORITE_SORTING.md`.
+
 ## Safety
 
 Alias matching is scoped by Telegram user ID. Two different users never affect each other's
