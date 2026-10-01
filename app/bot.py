@@ -12,10 +12,10 @@ from aiogram.types import CallbackQuery, Message, ReplyKeyboardRemove
 from app.data import FieldSource, PhotoRef, SourceRef, Venue
 from app.districts import DISTRICT_BY_KEY, PERM_DISTRICTS, PERM_RELATION_ID
 from app.filters import PlaceFilters
+from app.privacy import UserDataRepository
 from app.providers.budget import SQLiteDailyRequestBudget, render_daily_budget_status
 from app.providers.capabilities import ProviderStatus, render_provider_statuses
 from app.providers.overpass import ProviderError
-from app.privacy import UserDataRepository
 from app.query import parse_search_query, plan_search_query
 from app.ratings import RatingsRepository
 from app.scenarios import (
