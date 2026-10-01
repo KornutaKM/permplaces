@@ -292,11 +292,12 @@ async def my_data(
     await message.answer(
         "<b>Мои данные в PermPlaces</b>\n\n"
         f"❤️ Избранное: <b>{summary.favorites}</b>\n"
-        f"⭐ Мои оценки: <b>{summary.ratings}</b>\n\n"
+        f"⭐ Мои оценки: <b>{summary.ratings}</b>\n"
+        f"📝 Личные заметки: <b>{summary.notes}</b>\n\n"
         "Геолокация и текущие результаты поиска хранятся только в памяти "
         "текущего процесса и не входят в постоянную SQLite-базу.\n\n"
-        "Удаление ниже касается постоянных данных PermPlaces: избранного "
-        "и ваших community-оценок.",
+        "Удаление ниже касается постоянных данных PermPlaces: избранного, "
+        "community-оценок и личных заметок.",
         reply_markup=mydata_keyboard(
             has_persistent_data=summary.total_rows > 0,
         ),
@@ -323,7 +324,8 @@ async def export_my_data(
         caption=(
             "<b>Экспорт данных PermPlaces</b>\n"
             f"❤️ Избранное: {export.favorites}\n"
-            f"⭐ Оценки: {export.ratings}\n\n"
+            f"⭐ Оценки: {export.ratings}\n"
+            f"📝 Заметки: {export.notes}\n\n"
             "Файл не содержит Telegram user ID, API-ключей или истории геолокации."
         ),
     )
@@ -335,8 +337,8 @@ async def delete_my_data_requested(callback: CallbackQuery) -> None:
     if callback.message:
         await callback.message.edit_text(
             "<b>Удалить мои данные PermPlaces?</b>\n\n"
-            "Будут удалены все ваши сохранённые места и community-оценки. "
-            "Это действие нельзя отменить.",
+            "Будут удалены все ваши сохранённые места, community-оценки "
+            "и личные заметки. Это действие нельзя отменить.",
             reply_markup=delete_data_confirmation_keyboard(),
         )
 
@@ -365,7 +367,8 @@ async def delete_my_data_confirmed(
         await callback.message.edit_text(
             "<b>Данные PermPlaces удалены.</b>\n\n"
             f"Удалено избранных мест: <b>{deleted.favorites}</b>\n"
-            f"Удалено оценок: <b>{deleted.ratings}</b>\n\n"
+            f"Удалено оценок: <b>{deleted.ratings}</b>\n"
+            f"Удалено заметок: <b>{deleted.notes}</b>\n\n"
             "Также очищено текущее состояние поиска в памяти бота."
         )
 
