@@ -12,6 +12,7 @@ from app.filters import PlaceFilters
 from app.observability import endpoint_label
 from app.providers.base import ProviderError
 from app.providers.capabilities import GEOAPIFY_CAPABILITIES
+from app.version import PERMPLACES_USER_AGENT
 
 logger = logging.getLogger(__name__)
 
@@ -123,7 +124,7 @@ class GeoapifyProvider:
         self._client = client or httpx.AsyncClient(
             timeout=httpx.Timeout(timeout_seconds),
             headers={
-                "User-Agent": "PermPlaces/0.43 (+https://github.com/KornutaKM/permplaces)"
+                "User-Agent": PERMPLACES_USER_AGENT
             },
         )
 

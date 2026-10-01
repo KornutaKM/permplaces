@@ -15,6 +15,7 @@ from app.filters import PlaceFilters
 from app.observability import endpoint_label
 from app.providers.base import ProviderError
 from app.providers.capabilities import FOURSQUARE_CAPABILITIES
+from app.version import PERMPLACES_USER_AGENT
 
 logger = logging.getLogger(__name__)
 
@@ -181,7 +182,7 @@ class FoursquareProvider:
         self._headers = {
             "Accept": "application/json",
             "Authorization": f"Bearer {api_key.strip()}",
-            "User-Agent": "PermPlaces/0.43 (+https://github.com/KornutaKM/permplaces)",
+            "User-Agent": PERMPLACES_USER_AGENT,
             "X-Places-Api-Version": _API_VERSION,
         }
         self._owns_client = client is None

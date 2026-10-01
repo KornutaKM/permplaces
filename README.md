@@ -4,7 +4,7 @@ Telegram-ассистент для поиска кафе, ресторанов, 
 
 ## Статус
 
-Версия 0.43 добавляет локальное сравнение двух избранных мест по сохранённым provider-backed snapshot-полям и пользовательским меткам: без winner/score, без устаревающих distance/open-now значений и без смешивания rating scales.
+Версия 0.44 добавляет read-only release preflight для SQLite schema/data contract и единый runtime version/User-Agent: перед deploy можно обнаружить migration requirement, newer schema, schema drift или data drift без изменения базы и без ручного обновления версии в provider adapters.
 
 Рабочие вертикальные сценарии:
 
@@ -92,7 +92,9 @@ Telegram-ассистент для поиска кафе, ресторанов, 
 - Docker HEALTHCHECK, который показывает `healthy` только после runtime + SQLite initialization;
 - hardened container runtime: UID 10001, read-only root FS, `cap_drop: ALL`, `no-new-privileges`, resource limits.
 - versioned SQLite schema v4 через `PRAGMA user_version` и централизованный startup migration;
-- SQLite admin CLI: `python -m app.db_admin backup|verify|inspect|audit|repair-aliases|restore` с fail-closed guards;
+- SQLite admin CLI: `python -m app.db_admin backup|verify|inspect|audit|preflight|repair-aliases|restore` с fail-closed guards;
+- `db_admin preflight` read-only проверяет app/schema version, required tables/columns/indexes и alias/private-metadata audit перед deploy/restore;
+- runtime version читается из installed package metadata; provider User-Agent формируется централизованно, а startup log фиксирует фактическую версию процесса;
 - `db_admin audit` проверяет derived favorite alias index, orphan/invalid personal notes и tags без вывода пользовательского содержимого; repair-aliases остаётся узким и не удаляет metadata;
 - metadata audit использует exact identities из favorite payloads как source of truth, поэтому drifted alias-index не может легитимизировать orphan note/tag;
 - production runbook для secrets, exact-SHA deploy, backup/restore drill и application rollback: `docs/PRODUCTION.md`.
