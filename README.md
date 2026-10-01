@@ -4,7 +4,7 @@ Telegram-ассистент для поиска кафе, ресторанов, 
 
 ## Статус
 
-Версия 0.36 добавляет личные метки и локальную фильтрацию избранного: exact provider-alias identity, пять пользовательских категорий, удаление вместе с favorite, `/mydata` и JSON export v3.
+Версия 0.37 добавляет локальный поиск по избранному: название, адрес, категория, район, cuisine, личная заметка и личные метки ищутся детерминированно без внешних provider requests и без постоянной истории запросов.
 
 Рабочие вертикальные сценарии:
 
@@ -59,6 +59,7 @@ Telegram-ассистент для поиска кафе, ресторанов, 
 - удаление favorite транзакционно удаляет связанные personal notes и personal tags;
 - 🏷 пять фиксированных личных меток для организации favorites; это user intent, а не provider-backed свойства места;
 - favorites можно локально фильтровать по личной метке без внешних provider requests;
+- 🔎 локальный поиск по уже загруженному избранному использует название, адрес, категорию, район, cuisine, личные заметки и labels личных меток; запрос живёт только в in-memory FSM;
 - ⭐ собственные оценки пользователей PermPlaces 1–5 без платного rating API;
 - community rating агрегируется по provider aliases без двойного учёта одного пользователя;
 - пользователь видит свою текущую оценку, может изменить или удалить её;
@@ -239,7 +240,7 @@ OverpassProvider + optional GeoapifyProvider + optional paid catalog providers
 OpenStreetMap + Geoapify Places + optional 2GIS/Foursquare
 ```
 
-Provider abstraction теперь включает deterministic aggregation, capability routing и provenance. Community ratings, favorites, personal notes и personal tags используют общий provider identity contract. Контракты: `docs/PROVIDERS.md`, `docs/COMMUNITY_RATINGS.md`, `docs/FAVORITES.md`, `docs/FAVORITE_NOTES.md`, `docs/FAVORITE_TAGS.md`; privacy/data controls: `docs/PRIVACY.md`, export format: `docs/DATA_EXPORT.md`.
+Provider abstraction теперь включает deterministic aggregation, capability routing и provenance. Community ratings, favorites, personal notes и personal tags используют общий provider identity contract. Контракты: `docs/PROVIDERS.md`, `docs/COMMUNITY_RATINGS.md`, `docs/FAVORITES.md`, `docs/FAVORITE_NOTES.md`, `docs/FAVORITE_TAGS.md`, `docs/FAVORITE_SEARCH.md`; privacy/data controls: `docs/PRIVACY.md`, export format: `docs/DATA_EXPORT.md`.
 
 ## Следующие этапы
 
