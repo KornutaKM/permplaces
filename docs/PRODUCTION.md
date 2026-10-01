@@ -125,6 +125,8 @@ docker compose exec bot python -m app.db_admin backup \
   --output "/app/data/backups/permplaces-$STAMP.db"
 docker compose exec bot python -m app.db_admin verify \
   --database "/app/data/backups/permplaces-$STAMP.db"
+docker compose exec bot python -m app.db_admin inspect \
+  --database "/app/data/backups/permplaces-$STAMP.db"
 mkdir -p backups
 docker compose cp \
   "bot:/app/data/backups/permplaces-$STAMP.db" \
@@ -149,6 +151,10 @@ First verify the backup in an isolated one-off container:
 docker compose run --rm --no-deps \
   -v "$PWD/backups:/backup:ro" \
   bot python -m app.db_admin verify \
+  --database /backup/permplaces-YYYYMMDDTHHMMSSZ.db
+docker compose run --rm --no-deps \
+  -v "$PWD/backups:/backup:ro" \
+  bot python -m app.db_admin inspect \
   --database /backup/permplaces-YYYYMMDDTHHMMSSZ.db
 ```
 
@@ -182,7 +188,7 @@ docker compose ps
 docker compose logs --since=5m bot
 ```
 
-A restore drill is successful only when the bot becomes healthy and expected favorites and community ratings can be read after restart. Run a drill before the first production launch and after material storage
+A restore drill is successful only when `db_admin inspect` reports the expected schema version/counters, the bot becomes healthy, and expected favorites and community ratings can be read after restart. Run a drill before the first production launch and after material storage
 changes.
 
 ## 7. Application rollback
@@ -223,8 +229,7 @@ If readiness stays unhealthy:
 4. confirm there is only one polling instance for the token;
 5. check provider failures separately from core bot startup; optional Geoapify/2GIS/Foursquare keys are not
    required for the base OSM flow;
-6. if SQLite initialization fails, verify the database with `python -m app.db_admin verify` before
-   considering a restore.
+6. if SQLite initialization fails, run `python -m app.db_admin verify` and `python -m app.db_admin inspect` before considering a restore; a database newer than the application must not be downgraded in place.
 
 Do not delete `permplaces-data` during routine troubleshooting. In particular,
 `docker compose down -v` destroys the named volume and therefore the live favorites and community-ratings database.
