@@ -50,7 +50,14 @@ provenance and are not used by Scenario Engine ranking or the “Почему п
 Votes live in the same SQLite database as favorites and are included in the existing SQLite
 backup/restore procedure.
 
-Telegram user IDs are used only to enforce one current vote per user and venue identity. They are
-not shown in cards, diagnostics or rating summaries and are not sent to places providers.
+Telegram user IDs are used only to scope local user data and enforce one current vote per user and
+venue identity. They are not shown in cards, diagnostics or rating summaries and are not sent to
+places providers.
 
-The current MVP stores numeric ratings only. It does not collect free-text reviews.
+Users can inspect their own persistent row counts and delete all of their community ratings through
+`/mydata`. The same confirmed transaction also deletes their favorites. Historical provider
+aliases for that user are removed because deletion is keyed by Telegram user ID, not by one venue
+alias.
+
+The current MVP stores numeric ratings only. It does not collect free-text reviews. See
+`docs/PRIVACY.md` for the complete application-data contract.
