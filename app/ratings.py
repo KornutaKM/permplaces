@@ -1,12 +1,12 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, replace
-from pathlib import Path
 from time import time_ns
 
 import aiosqlite
 
 from app.data import SourceRef, Venue
+from app.database import initialize_database
 
 
 @dataclass(frozen=True, slots=True)
@@ -69,29 +69,7 @@ class RatingsRepository:
         self._database_path = database_path
 
     async def initialize(self) -> None:
-        path = Path(self._database_path)
-        path.parent.mkdir(parents=True, exist_ok=True)
-
-        async with aiosqlite.connect(self._database_path) as database:
-            await database.execute("PRAGMA journal_mode=WAL")
-            await database.execute(
-                """
-                CREATE TABLE IF NOT EXISTS venue_ratings (
-                    user_id INTEGER NOT NULL,
-                    venue_key TEXT NOT NULL,
-                    score INTEGER NOT NULL CHECK (score BETWEEN 1 AND 5),
-                    updated_at_ns INTEGER NOT NULL,
-                    PRIMARY KEY (user_id, venue_key)
-                )
-                """
-            )
-            await database.execute(
-                """
-                CREATE INDEX IF NOT EXISTS idx_venue_ratings_venue_key
-                ON venue_ratings (venue_key, updated_at_ns DESC)
-                """
-            )
-            await database.commit()
+        await initialize_database(self._database_path)
 
     async def set_rating(
         self,
