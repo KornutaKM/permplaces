@@ -78,7 +78,7 @@ class TwoGISProvider:
         self._owns_client = client is None
         self._client = client or httpx.AsyncClient(
             timeout=httpx.Timeout(timeout_seconds),
-            headers={"User-Agent": "PermPlaces/0.28 (+https://github.com/KornutaKM/permplaces)"},
+            headers={"User-Agent": "PermPlaces/0.29 (+https://github.com/KornutaKM/permplaces)"},
         )
 
     async def close(self) -> None:
