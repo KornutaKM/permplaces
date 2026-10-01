@@ -34,6 +34,7 @@ BOT_TOKEN=...
 Optional provider keys remain opt-in:
 
 ```env
+GEOAPIFY_API_KEY=
 TWOGIS_API_KEY=
 FOURSQUARE_API_KEY=
 ```
@@ -178,8 +179,7 @@ docker compose ps
 docker compose logs --since=5m bot
 ```
 
-A restore drill is successful only when the bot becomes healthy and expected favorites can be
-read after restart. Run a drill before the first production launch and after material storage
+A restore drill is successful only when the bot becomes healthy and expected favorites and community ratings can be read after restart. Run a drill before the first production launch and after material storage
 changes.
 
 ## 7. Application rollback
@@ -218,13 +218,13 @@ If readiness stays unhealthy:
 2. confirm `.env` contains a valid `BOT_TOKEN`;
 3. confirm the named volume is mounted and writable by UID 10001;
 4. confirm there is only one polling instance for the token;
-5. check provider failures separately from core bot startup; optional 2GIS/Foursquare keys are not
+5. check provider failures separately from core bot startup; optional Geoapify/2GIS/Foursquare keys are not
    required for the base OSM flow;
 6. if SQLite initialization fails, verify the database with `python -m app.db_admin verify` before
    considering a restore.
 
 Do not delete `permplaces-data` during routine troubleshooting. In particular,
-`docker compose down -v` destroys the named volume and therefore the live favorites database.
+`docker compose down -v` destroys the named volume and therefore the live favorites and community-ratings database.
 
 ## 9. Release evidence
 
