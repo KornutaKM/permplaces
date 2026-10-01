@@ -3,11 +3,11 @@ from __future__ import annotations
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime
-from pathlib import Path
 
 import aiosqlite
 
 from app.data import Venue
+from app.database import initialize_database
 from app.filters import PlaceFilters
 from app.providers.base import PlacesProvider, ProviderError
 from app.providers.capabilities import ProviderCapabilities, provider_capabilities
@@ -53,22 +53,7 @@ class SQLiteDailyRequestBudget:
         return current.astimezone(UTC).date().isoformat()
 
     async def initialize(self) -> None:
-        path = Path(self._database_path)
-        path.parent.mkdir(parents=True, exist_ok=True)
-
-        async with aiosqlite.connect(self._database_path) as database:
-            await database.execute("PRAGMA journal_mode=WAL")
-            await database.execute(
-                """
-                CREATE TABLE IF NOT EXISTS provider_daily_request_budget (
-                    provider TEXT NOT NULL,
-                    day TEXT NOT NULL,
-                    used INTEGER NOT NULL CHECK (used >= 0),
-                    PRIMARY KEY (provider, day)
-                )
-                """
-            )
-            await database.commit()
+        await initialize_database(self._database_path)
 
     async def reserve(self) -> DailyBudgetStatus:
         day = self._day()
