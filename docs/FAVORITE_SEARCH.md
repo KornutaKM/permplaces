@@ -41,7 +41,11 @@ characters.
 A successful query replaces only the visible in-memory favorite result set. The full loaded
 favorites list remains available for clearing search or switching to a tag filter.
 
-`🧹 Сбросить поиск` restores the complete favorite list.
+`🧹 Сбросить поиск` restores the complete favorite list using the currently selected local
+favorite sort mode.
+
+Text-search relevance ranking takes priority while a query is active. Choosing an explicit sort
+clears the text query before applying that sort. See `docs/FAVORITE_SORTING.md`.
 
 ## Privacy and provider behavior
 
