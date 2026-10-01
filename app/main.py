@@ -22,6 +22,7 @@ from app.providers.foursquare import FoursquareProvider
 from app.providers.geoapify import GeoapifyProvider
 from app.providers.overpass import OverpassProvider
 from app.providers.twogis import TwoGISProvider
+from app.ratings import RatingsRepository
 from app.search import SearchService
 from app.storage import FavoritesRepository
 
@@ -148,8 +149,12 @@ async def main() -> None:
     )
 
     composite_provider = CompositePlacesProvider(aggregate_providers)
-    search_service = SearchService(composite_provider)
     favorites_repository = FavoritesRepository(settings.database_path)
+    ratings_repository = RatingsRepository(settings.database_path)
+    search_service = SearchService(
+        composite_provider,
+        ratings_repository=ratings_repository,
+    )
     health_server = HealthServer(
         host=settings.health_host,
         port=settings.health_port,
@@ -158,6 +163,7 @@ async def main() -> None:
     try:
         await health_server.start()
         await favorites_repository.initialize()
+        await ratings_repository.initialize()
         health_server.state.mark_ready()
 
         logger.info(
@@ -178,6 +184,7 @@ async def main() -> None:
             bot,
             search_service=search_service,
             favorites_repository=favorites_repository,
+            ratings_repository=ratings_repository,
             provider_statuses=provider_statuses,
         )
     finally:
