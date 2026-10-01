@@ -2,7 +2,7 @@ import sqlite3
 
 import pytest
 
-from app.database import DatabaseSchemaError, SCHEMA_VERSION, initialize_database
+from app.database import SCHEMA_VERSION, DatabaseSchemaError, initialize_database
 
 
 @pytest.mark.asyncio
