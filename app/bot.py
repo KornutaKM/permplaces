@@ -1423,6 +1423,250 @@ async def favorite_overview(
     )
 
 
+def _favorite_facets_context(
+    data: dict[str, object],
+) -> tuple[list[dict[str, object]], list[Venue]] | None:
+    all_results_raw = data.get("favorite_all_results")
+    if data.get("category") != "favorites" or not isinstance(all_results_raw, list):
+        return None
+
+    all_results = [
+        item
+        for item in all_results_raw
+        if isinstance(item, dict)
+    ]
+    venues = [_venue_from_dict(item) for item in all_results]
+    if not venues:
+        return None
+    return all_results, venues
+
+
+@router.callback_query(F.data == "fx:menu")
+async def favorite_facets_menu(
+    callback: CallbackQuery,
+    state: FSMContext,
+) -> None:
+    await callback.answer()
+    if not callback.message:
+        return
+
+    data = await state.get_data()
+    context = _favorite_facets_context(data)
+    if context is None:
+        await callback.message.answer(
+            "Фильтры доступны только для актуального списка избранного."
+        )
+        return
+
+    _all_results, venues = context
+    facets = build_favorite_facets(venues)
+    await callback.message.edit_reply_markup(
+        reply_markup=favorite_facets_keyboard(
+            facets,
+            active_category=(
+                data.get("favorite_category_filter")
+                if isinstance(data.get("favorite_category_filter"), str)
+                else None
+            ),
+            active_district=(
+                data.get("favorite_district_filter")
+                if isinstance(data.get("favorite_district_filter"), str)
+                else None
+            ),
+            district_missing=data.get("favorite_district_missing") is True,
+        )
+    )
+
+
+@router.callback_query(F.data == "fx:categories")
+async def favorite_category_facets_menu(
+    callback: CallbackQuery,
+    state: FSMContext,
+) -> None:
+    await callback.answer()
+    if not callback.message:
+        return
+
+    data = await state.get_data()
+    context = _favorite_facets_context(data)
+    if context is None:
+        return
+
+    _all_results, venues = context
+    facets = build_favorite_facets(venues)
+    await callback.message.edit_reply_markup(
+        reply_markup=favorite_category_facets_keyboard(
+            facets,
+            active_category=(
+                data.get("favorite_category_filter")
+                if isinstance(data.get("favorite_category_filter"), str)
+                else None
+            ),
+        )
+    )
+
+
+@router.callback_query(F.data == "fx:districts")
+async def favorite_district_facets_menu(
+    callback: CallbackQuery,
+    state: FSMContext,
+) -> None:
+    await callback.answer()
+    if not callback.message:
+        return
+
+    data = await state.get_data()
+    context = _favorite_facets_context(data)
+    if context is None:
+        return
+
+    _all_results, venues = context
+    facets = build_favorite_facets(venues)
+    await callback.message.edit_reply_markup(
+        reply_markup=favorite_district_facets_keyboard(
+            facets,
+            active_district=(
+                data.get("favorite_district_filter")
+                if isinstance(data.get("favorite_district_filter"), str)
+                else None
+            ),
+            district_missing=data.get("favorite_district_missing") is True,
+        )
+    )
+
+
+@router.callback_query(F.data.startswith("fx:c:"))
+async def favorite_category_facet_selected(
+    callback: CallbackQuery,
+    state: FSMContext,
+) -> None:
+    if not callback.data:
+        return
+
+    data = await state.get_data()
+    context = _favorite_facets_context(data)
+    if context is None:
+        await callback.answer("Список избранного устарел.")
+        return
+
+    all_results, venues = context
+    token = callback.data.removeprefix("fx:c:")
+    facets = build_favorite_facets(venues)
+    if token == "all":
+        category_filter = None
+    else:
+        category_filter = category_from_token(facets, token)
+        if category_filter is None:
+            await callback.answer("Этот фильтр устарел. Откройте меню снова.")
+            return
+
+    view_data = dict(data)
+    view_data["favorite_category_filter"] = category_filter
+    view_data["favorite_search_query"] = None
+    results = _favorite_view_results(view_data, all_results)
+    if not results:
+        await callback.answer("В текущем сочетании фильтров нет мест.")
+        return
+
+    await state.update_data(
+        results=results,
+        result_index=0,
+        favorite_category_filter=category_filter,
+        favorite_search_query=None,
+    )
+    await callback.answer("Категория обновлена")
+    await _edit_current_result(callback, state)
+
+
+@router.callback_query(F.data.startswith("fx:d:"))
+async def favorite_district_facet_selected(
+    callback: CallbackQuery,
+    state: FSMContext,
+) -> None:
+    if not callback.data:
+        return
+
+    data = await state.get_data()
+    context = _favorite_facets_context(data)
+    if context is None:
+        await callback.answer("Список избранного устарел.")
+        return
+
+    all_results, venues = context
+    token = callback.data.removeprefix("fx:d:")
+    facets = build_favorite_facets(venues)
+
+    district_filter: str | None = None
+    district_missing = False
+    if token == "all":
+        pass
+    elif token == "missing":
+        if not facets.missing_district:
+            await callback.answer("Карточек без района больше нет.")
+            return
+        district_missing = True
+    else:
+        district_filter = district_from_token(facets, token)
+        if district_filter is None:
+            await callback.answer("Этот фильтр устарел. Откройте меню снова.")
+            return
+
+    view_data = dict(data)
+    view_data["favorite_district_filter"] = district_filter
+    view_data["favorite_district_missing"] = district_missing
+    view_data["favorite_search_query"] = None
+    results = _favorite_view_results(view_data, all_results)
+    if not results:
+        await callback.answer("В текущем сочетании фильтров нет мест.")
+        return
+
+    await state.update_data(
+        results=results,
+        result_index=0,
+        favorite_district_filter=district_filter,
+        favorite_district_missing=district_missing,
+        favorite_search_query=None,
+    )
+    await callback.answer("Район обновлён")
+    await _edit_current_result(callback, state)
+
+
+@router.callback_query(F.data == "fx:reset")
+async def favorite_facets_reset(
+    callback: CallbackQuery,
+    state: FSMContext,
+) -> None:
+    data = await state.get_data()
+    context = _favorite_facets_context(data)
+    if context is None:
+        await callback.answer("Список избранного устарел.")
+        return
+
+    all_results, _venues = context
+    view_data = dict(data)
+    view_data.update(
+        favorite_category_filter=None,
+        favorite_district_filter=None,
+        favorite_district_missing=False,
+        favorite_search_query=None,
+    )
+    results = _favorite_view_results(view_data, all_results)
+    if not results:
+        await callback.answer("В текущем фильтре по метке нет мест.")
+        return
+
+    await state.update_data(
+        results=results,
+        result_index=0,
+        favorite_category_filter=None,
+        favorite_district_filter=None,
+        favorite_district_missing=False,
+        favorite_search_query=None,
+    )
+    await callback.answer("Категория и район сброшены")
+    await _edit_current_result(callback, state)
+
+
 @router.callback_query(F.data == "ff:menu")
 async def favorite_filter_menu(
     callback: CallbackQuery,
@@ -1561,8 +1805,13 @@ async def favorite_search_clear(
         if isinstance(item, dict)
     ]
     view_data = dict(data)
-    view_data["favorite_filter"] = None
-    view_data["favorite_search_query"] = None
+    view_data.update(
+        favorite_filter=None,
+        favorite_search_query=None,
+        favorite_category_filter=None,
+        favorite_district_filter=None,
+        favorite_district_missing=False,
+    )
     results = _favorite_view_results(view_data, all_results)
     await state.set_state(None)
     await state.update_data(
@@ -1570,6 +1819,9 @@ async def favorite_search_clear(
         result_index=0,
         favorite_filter=None,
         favorite_search_query=None,
+        favorite_category_filter=None,
+        favorite_district_filter=None,
+        favorite_district_missing=False,
     )
     await callback.answer("Поиск сброшен")
     await _edit_current_result(callback, state)
@@ -1618,6 +1870,9 @@ async def favorite_search_text(
         result_index=0,
         favorite_filter=None,
         favorite_search_query=query,
+        favorite_category_filter=None,
+        favorite_district_filter=None,
+        favorite_district_missing=False,
     )
 
     venue = matches[0]
