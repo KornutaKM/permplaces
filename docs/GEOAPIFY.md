@@ -10,9 +10,33 @@ The provider currently participates only in nearby searches. It never approximat
 
 ## Free-plan budget
 
-PermPlaces caps one Geoapify Places request at 20 results. Geoapify prices Places requests in 20-result credit blocks, so this keeps each bot provider call bounded to one Places credit under the current public pricing model.
+Geoapify's current public documentation lists 3,000 credits/day for the Free plan and prices
+Places calls in blocks of up to 20 returned places per credit. PermPlaces already caps one Places
+request at 20 results.
 
-The application cache still applies before the provider adapter, so repeated identical searches within the configured TTL do not consume another upstream request.
+v0.28 also adds a persistent application-side request guard:
+
+```env
+GEOAPIFY_DAILY_REQUEST_BUDGET=2500
+```
+
+The counter is stored in the same SQLite database and is keyed by UTC calendar day. The default
+2500-call limit intentionally leaves headroom below the current 3000-credit free allowance.
+Cached requests do not consume another local budget unit because the cache wraps the guarded
+provider. A reserved unit is counted even when the upstream request later fails; this is
+deliberately conservative.
+
+The guard cannot see Geoapify calls made by other applications sharing the same API key and does
+not claim to reproduce Geoapify's billing-window boundary exactly. Treat it as a local safety
+ceiling, not a billing meter.
+
+Official references:
+
+- https://www.geoapify.com/pricing/
+- https://apidocs.geoapify.com/docs/places/places/
+
+
+
 
 ## Supported categories
 
