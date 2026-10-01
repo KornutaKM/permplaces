@@ -1,4 +1,5 @@
 from dataclasses import asdict, replace
+from html import escape
 
 from aiogram import F, Router
 from aiogram.exceptions import TelegramBadRequest
@@ -707,7 +708,7 @@ async def rate_venue(callback: CallbackQuery, state: FSMContext) -> None:
         return
 
     await callback.message.answer(
-        f"⭐ <b>Оцените {venue.name}</b>\n\n"
+        f"⭐ <b>Оцените {escape(venue.name)}</b>\n\n"
         "Оценка хранится как мнение пользователей PermPlaces и не заменяет "
         "рейтинг внешнего источника.",
         reply_markup=rating_keyboard(venue.id),
