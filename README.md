@@ -4,7 +4,7 @@ Telegram-ассистент для поиска кафе, ресторанов, 
 
 ## Статус
 
-Версия 0.40 добавляет локальный обзор избранного: агрегированные counts по сохранённым карточкам, личным заметкам/меткам, категориям и известным районам, без внешних provider requests и без новой persistent analytics-таблицы.
+Версия 0.41 добавляет локальные facets для избранного: category + district фильтруются по уже сохранённым полям карточек, композируются с личными метками и сортировкой, а неизвестный район остаётся отдельным unknown-state без геокодинга или догадок.
 
 Рабочие вертикальные сценарии:
 
@@ -62,6 +62,7 @@ Telegram-ассистент для поиска кафе, ресторанов, 
 - 🔎 локальный поиск по уже загруженному избранному использует название, адрес, категорию, район, cuisine, личные заметки и labels личных меток; запрос живёт только в in-memory FSM;
 - ↕️ локальная сортировка favorites: порядок сохранения, название, сначала с заметкой или сначала с большим числом личных меток; provider ratings разных шкал намеренно не смешиваются для сортировки;
 - 📊 обзор избранного считает весь загруженный favorite-set, личные заметки/метки и только уже сохранённые category/district fields; неизвестные районы остаются явно неизвестными;
+- 🧩 локальные facets по category и district используют только сохранённые snapshot fields, поддерживают явный «район не указан», не вызывают внешние API и композируются с tag-filter/sort;
 - ⭐ собственные оценки пользователей PermPlaces 1–5 без платного rating API;
 - community rating агрегируется по provider aliases без двойного учёта одного пользователя;
 - пользователь видит свою текущую оценку, может изменить или удалить её;
@@ -243,7 +244,7 @@ OverpassProvider + optional GeoapifyProvider + optional paid catalog providers
 OpenStreetMap + Geoapify Places + optional 2GIS/Foursquare
 ```
 
-Provider abstraction теперь включает deterministic aggregation, capability routing и provenance. Community ratings, favorites, personal notes и personal tags используют общий provider identity contract. Контракты: `docs/PROVIDERS.md`, `docs/COMMUNITY_RATINGS.md`, `docs/FAVORITES.md`, `docs/FAVORITE_NOTES.md`, `docs/FAVORITE_TAGS.md`, `docs/FAVORITE_SEARCH.md`, `docs/FAVORITE_SORTING.md`, `docs/FAVORITE_OVERVIEW.md`; privacy/data controls: `docs/PRIVACY.md`, export format: `docs/DATA_EXPORT.md`.
+Provider abstraction теперь включает deterministic aggregation, capability routing и provenance. Community ratings, favorites, personal notes и personal tags используют общий provider identity contract. Контракты: `docs/PROVIDERS.md`, `docs/COMMUNITY_RATINGS.md`, `docs/FAVORITES.md`, `docs/FAVORITE_NOTES.md`, `docs/FAVORITE_TAGS.md`, `docs/FAVORITE_SEARCH.md`, `docs/FAVORITE_SORTING.md`, `docs/FAVORITE_OVERVIEW.md`, `docs/FAVORITE_FACETS.md`; privacy/data controls: `docs/PRIVACY.md`, export format: `docs/DATA_EXPORT.md`.
 
 ## Следующие этапы
 
