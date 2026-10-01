@@ -87,6 +87,7 @@ Any card containing Geoapify data displays both:
 GEOAPIFY_API_KEY=
 GEOAPIFY_URL=https://api.geoapify.com/v2/places
 GEOAPIFY_TIMEOUT_SECONDS=10
+GEOAPIFY_DAILY_REQUEST_BUDGET=2500
 ```
 
 When the key is empty, no Geoapify request is made.
