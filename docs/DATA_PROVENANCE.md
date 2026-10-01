@@ -16,13 +16,15 @@ The primary identity stays stable according to provider priority. Adding a secon
 
 ## Conservative deduplication
 
-Two records are considered the same physical venue only when at least one bounded signal is strong enough:
+Two records are considered the same physical venue only when bounded identity evidence is strong enough:
 
 1. identical provider + source ID;
-2. same normalized phone within 500 m;
-3. same normalized website host within 500 m;
-4. same normalized name + same normalized address within 500 m;
-5. same normalized name within 40 m.
+2. matching phone inside a branch-sized radius or with matching normalized address;
+3. shared website host only with matching address or very-close coordinates;
+4. exact normalized name with matching address or close coordinates;
+5. generic venue-type name variants only with matching address or very-close coordinates.
+
+Records more than 500 m apart never merge.
 
 Otherwise the records remain separate.
 
@@ -48,7 +50,9 @@ Programming errors and unexpected exceptions are not downgraded to provider outa
 
 ## Persistence
 
-Favorites serialize both source references and field provenance. Time-relative derived state such as distance, `is_open_now`, and `is_open_late` remains non-persistent.
+Favorites serialize both source references and field provenance. Time-relative derived state such as distance, `is_open_now`, `is_open_late`, and the current community-rating aggregate remains non-persistent in favorite payloads.
+
+Community votes are stored separately in SQLite. They are local user-generated application data, not provider facts, so they do not receive external `FieldSource` entries. Aggregation reads all known provider aliases for a merged venue and deduplicates historical alias votes by Telegram user ID.
 
 ## Current runtime
 
@@ -71,3 +75,12 @@ as corroboration. Shared chain websites and generic venue-type names are not suf
 signals by themselves; address/proximity constraints remain mandatory.
 
 See `docs/PROVIDERS.md` for the complete routing and identity contract.
+
+
+## Community ratings
+
+v0.27 adds a local 1–5 community rating layer. It is rendered explicitly as a PermPlaces user
+aggregate and never replaces or modifies an external provider rating. Scenario Engine does not
+rank by this signal and does not include it in provider-backed explanation reasons.
+
+See `docs/COMMUNITY_RATINGS.md` for identity, persistence and privacy details.
