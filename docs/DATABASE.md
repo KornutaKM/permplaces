@@ -59,6 +59,30 @@ rating rows.
 Use `inspect` after a backup/restore drill and before diagnosing schema-related startup failures.
 It runs `PRAGMA quick_check` first.
 
+## Favorite alias consistency audit
+
+Schema v2 treats `favorite_identity_aliases` as a derived index of `favorites`. Operators can
+verify that relationship without printing user IDs, venue payloads or identity keys:
+
+```bash
+python -m app.db_admin audit --database data/permplaces.db
+```
+
+A consistent database prints `audit_ok` and zero counts for missing, unexpected and orphan alias
+rows. Drift prints `audit_drift` and exits with status 3.
+
+The audit is read-only. If drift must be repaired, stop the bot and run:
+
+```bash
+python -m app.db_admin repair-aliases \
+  --database data/permplaces.db \
+  --confirm-stopped
+```
+
+Repair creates a timestamped `pre-alias-repair` safety backup, rebuilds the alias index only from
+the exact provider identities already stored in favorite payloads, runs `quick_check`, and then
+requires a clean audit. It does not change favorite payloads or community ratings.
+
 ## Backward and forward compatibility
 
 Older schema version:
