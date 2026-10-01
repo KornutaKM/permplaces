@@ -4,7 +4,7 @@ Telegram-ассистент для поиска кафе, ресторанов, 
 
 ## Статус
 
-Версия 0.32 переводит alias-aware favorites на SQLite schema v2 с persistent identity index: toggle больше не сканирует и не декодирует всё избранное пользователя, а migration backfill сохраняет совместимость со старыми данными.
+Версия 0.33 добавляет self-service JSON export через `/mydata`: пользователь может скачать свои favorites и community ratings без Telegram user ID, API-ключей, search history или location history.
 
 Рабочие вертикальные сценарии:
 
@@ -65,7 +65,8 @@ Telegram-ассистент для поиска кафе, ресторанов, 
 - conservative dedup v2 с branch-safe phone/site/name/address matching;
 - corroborating field provenance: одинаковый сохранённый факт может иметь несколько источников;
 - безопасная команда `/providers` показывает активные источники, возможности и текущий local Geoapify budget без секретов;
-- `/mydata` показывает только агрегированные counts текущего пользователя и даёт подтверждаемое удаление favorites+community ratings;
+- `/mydata` показывает только агрегированные counts текущего пользователя, даёт скачать versioned JSON export и подтверждаемое удаление favorites+community ratings;
+- экспорт генерируется в памяти, не содержит Telegram user ID/секретов и документирован в `docs/DATA_EXPORT.md`;
 - удаление пользовательских данных выполняется одной SQLite-транзакцией и очищает текущий in-memory search state;
 - source-level и field-level provenance для объединённых карточек;
 - рекомендуемый бесплатный Geoapify Places provider для nearby-поиска при заданном `GEOAPIFY_API_KEY`;
@@ -233,7 +234,7 @@ OverpassProvider + optional GeoapifyProvider + optional paid catalog providers
 OpenStreetMap + Geoapify Places + optional 2GIS/Foursquare
 ```
 
-Provider abstraction теперь включает deterministic aggregation, capability routing и provenance. Community ratings и favorites используют общий provider identity contract. Контракты: `docs/PROVIDERS.md`, `docs/COMMUNITY_RATINGS.md`, `docs/FAVORITES.md`; privacy/data controls: `docs/PRIVACY.md`.
+Provider abstraction теперь включает deterministic aggregation, capability routing и provenance. Community ratings и favorites используют общий provider identity contract. Контракты: `docs/PROVIDERS.md`, `docs/COMMUNITY_RATINGS.md`, `docs/FAVORITES.md`; privacy/data controls: `docs/PRIVACY.md`, export format: `docs/DATA_EXPORT.md`.
 
 ## Следующие этапы
 
