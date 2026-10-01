@@ -27,12 +27,19 @@ from app.scenarios import (
 )
 from app.search import SearchService
 from app.storage import FavoritesRepository
+from app.tags import (
+    FAVORITE_TAG_LABELS,
+    FavoriteTagsRepository,
+    favorite_tag_counts,
+)
 from app.ui import (
     CATEGORY_LABELS,
     categories_keyboard,
     delete_data_confirmation_keyboard,
     districts_keyboard,
+    favorite_filter_keyboard,
     favorite_note_keyboard,
+    favorite_tags_keyboard,
     filters_keyboard,
     home_keyboard,
     mydata_keyboard,
@@ -109,6 +116,10 @@ def _venue_from_dict(value: dict[str, object]) -> Venue:
             for item in photos
             if isinstance(item, dict)
         )
+
+    personal_tags = restored.get("personal_tags")
+    if isinstance(personal_tags, (list, tuple)):
+        restored["personal_tags"] = tuple(str(item) for item in personal_tags)
 
     return Venue(**restored)  # type: ignore[arg-type]
 
@@ -237,6 +248,12 @@ async def _edit_current_result(callback: CallbackQuery, state: FSMContext) -> No
             venue.id,
             can_previous=index > 0,
             can_next=index < len(results) - 1,
+            favorites_mode=data.get("category") == "favorites",
+            active_favorite_tag=(
+                data.get("favorite_filter")
+                if isinstance(data.get("favorite_filter"), str)
+                else None
+            ),
         ),
         disable_web_page_preview=True,
     )
@@ -293,11 +310,12 @@ async def my_data(
         "<b>Мои данные в PermPlaces</b>\n\n"
         f"❤️ Избранное: <b>{summary.favorites}</b>\n"
         f"⭐ Мои оценки: <b>{summary.ratings}</b>\n"
-        f"📝 Личные заметки: <b>{summary.notes}</b>\n\n"
+        f"📝 Личные заметки: <b>{summary.notes}</b>\n"
+        f"🏷 Мои метки: <b>{summary.tags}</b>\n\n"
         "Геолокация и текущие результаты поиска хранятся только в памяти "
         "текущего процесса и не входят в постоянную SQLite-базу.\n\n"
         "Удаление ниже касается постоянных данных PermPlaces: избранного, "
-        "community-оценок и личных заметок.",
+        "community-оценок, личных заметок и ваших меток.",
         reply_markup=mydata_keyboard(
             has_persistent_data=summary.total_rows > 0,
         ),
@@ -325,7 +343,8 @@ async def export_my_data(
             "<b>Экспорт данных PermPlaces</b>\n"
             f"❤️ Избранное: {export.favorites}\n"
             f"⭐ Оценки: {export.ratings}\n"
-            f"📝 Заметки: {export.notes}\n\n"
+            f"📝 Заметки: {export.notes}\n"
+            f"🏷 Метки: {export.tags}\n\n"
             "Файл не содержит Telegram user ID, API-ключей или истории геолокации."
         ),
     )
@@ -337,8 +356,8 @@ async def delete_my_data_requested(callback: CallbackQuery) -> None:
     if callback.message:
         await callback.message.edit_text(
             "<b>Удалить мои данные PermPlaces?</b>\n\n"
-            "Будут удалены все ваши сохранённые места, community-оценки "
-            "и личные заметки. Это действие нельзя отменить.",
+            "Будут удалены все ваши сохранённые места, community-оценки, "
+            "личные заметки и метки. Это действие нельзя отменить.",
             reply_markup=delete_data_confirmation_keyboard(),
         )
 
@@ -368,7 +387,8 @@ async def delete_my_data_confirmed(
             "<b>Данные PermPlaces удалены.</b>\n\n"
             f"Удалено избранных мест: <b>{deleted.favorites}</b>\n"
             f"Удалено оценок: <b>{deleted.ratings}</b>\n"
-            f"Удалено заметок: <b>{deleted.notes}</b>\n\n"
+            f"Удалено заметок: <b>{deleted.notes}</b>\n"
+            f"Удалено меток: <b>{deleted.tags}</b>\n\n"
             "Также очищено текущее состояние поиска в памяти бота."
         )
 
@@ -488,6 +508,7 @@ async def text_search(
             venue.id,
             can_previous=False,
             can_next=len(venues) > 1,
+            favorites_mode=True,
         ),
         disable_web_page_preview=True,
     )
@@ -505,6 +526,7 @@ async def favorites(
     favorites_repository: FavoritesRepository,
     ratings_repository: RatingsRepository,
     notes_repository: NotesRepository,
+    tags_repository: FavoriteTagsRepository,
 ) -> None:
     if message.from_user is None:
         return
@@ -515,6 +537,10 @@ async def favorites(
         user_id=message.from_user.id,
         venues=venues,
     )
+    venues = await tags_repository.enrich_many(
+        user_id=message.from_user.id,
+        venues=venues,
+    )
     if not venues:
         await message.answer(
             "❤️ <b>Избранное пока пусто.</b>\n\n"
@@ -522,8 +548,11 @@ async def favorites(
         )
         return
 
+    all_results = [asdict(venue) for venue in venues]
     await state.update_data(
-        results=[asdict(venue) for venue in venues],
+        results=all_results,
+        favorite_all_results=all_results,
+        favorite_filter=None,
         result_index=0,
         category="favorites",
         result_scenario=None,
@@ -680,6 +709,7 @@ async def _send_venue_detail(
     venue: Venue,
     *,
     allow_note: bool = False,
+    allow_tags: bool = False,
 ) -> None:
     card = render_venue_card(venue)
     photo_url = primary_photo_url(venue)
@@ -688,7 +718,11 @@ async def _send_venue_detail(
             await message.answer_photo(
                 photo=photo_url,
                 caption=card,
-                reply_markup=venue_keyboard(venue, allow_note=allow_note),
+                reply_markup=venue_keyboard(
+                    venue,
+                    allow_note=allow_note,
+                    allow_tags=allow_tags,
+                ),
             )
             return
         except TelegramBadRequest:
@@ -696,7 +730,11 @@ async def _send_venue_detail(
 
     await message.answer(
         card,
-        reply_markup=venue_keyboard(venue, allow_note=allow_note),
+        reply_markup=venue_keyboard(
+            venue,
+            allow_note=allow_note,
+            allow_tags=allow_tags,
+        ),
         disable_web_page_preview=True,
     )
 
@@ -719,10 +757,12 @@ async def venue_detail(callback: CallbackQuery, state: FSMContext) -> None:
         await callback.message.edit_text("Карточка больше не доступна. Запустите поиск снова.")
         return
 
+    favorite_mode = data.get("category") == "favorites"
     await _send_venue_detail(
         callback.message,
         venue,
-        allow_note=data.get("category") == "favorites",
+        allow_note=favorite_mode,
+        allow_tags=favorite_mode,
     )
 
 
@@ -774,8 +814,23 @@ async def favorite(
         for item in dict_results
         if item.get("id") != venue_id
     ]
+    all_results_raw = data.get("favorite_all_results")
+    all_results = (
+        [item for item in all_results_raw if isinstance(item, dict)]
+        if isinstance(all_results_raw, list)
+        else dict_results
+    )
+    updated_all_results = [
+        item
+        for item in all_results
+        if item.get("id") != venue_id
+    ]
     if not updated_results:
-        await state.update_data(results=[], result_index=0)
+        await state.update_data(
+            results=[],
+            favorite_all_results=updated_all_results,
+            result_index=0,
+        )
         if callback.message:
             if from_detail:
                 await callback.message.delete()
@@ -794,7 +849,11 @@ async def favorite(
     if not isinstance(index, int):
         index = 0
     index = min(index, len(updated_results) - 1)
-    await state.update_data(results=updated_results, result_index=index)
+    await state.update_data(
+        results=updated_results,
+        favorite_all_results=updated_all_results,
+        result_index=index,
+    )
 
     if from_detail and callback.message:
         raw = updated_results[index]
@@ -811,6 +870,12 @@ async def favorite(
                     current.id,
                     can_previous=index > 0,
                     can_next=index < len(updated_results) - 1,
+                    favorites_mode=True,
+                    active_favorite_tag=(
+                        data.get("favorite_filter")
+                        if isinstance(data.get("favorite_filter"), str)
+                        else None
+                    ),
                 ),
                 disable_web_page_preview=True,
             )
@@ -983,6 +1048,234 @@ async def favorite_note_text(
     await message.answer(
         "📝 Заметка сохранена. Она будет видна только в вашем избранном."
     )
+
+
+@router.callback_query(F.data.startswith("ft:menu:"))
+async def favorite_tags_menu(
+    callback: CallbackQuery,
+    state: FSMContext,
+) -> None:
+    await callback.answer()
+    if not callback.data or callback.message is None:
+        return
+
+    data = await state.get_data()
+    results = data.get("results")
+    if data.get("category") != "favorites" or not isinstance(results, list):
+        await callback.message.answer(
+            "Метки доступны только для актуального списка избранного."
+        )
+        return
+
+    venue_id = callback.data.removeprefix("ft:menu:")
+    dict_results = [item for item in results if isinstance(item, dict)]
+    venue = _find_result(dict_results, venue_id)
+    if venue is None:
+        await callback.message.answer(
+            "Карточка устарела. Откройте избранное снова."
+        )
+        return
+
+    await callback.message.answer(
+        "<b>Ваши метки</b>\n\n"
+        "Это ваши личные категории для организации избранного. "
+        "Они не являются характеристиками заведения и не отправляются провайдерам.",
+        reply_markup=favorite_tags_keyboard(
+            venue.id,
+            current_tags=venue.personal_tags,
+        ),
+    )
+
+
+@router.callback_query(F.data == "ft:close")
+async def close_favorite_tags(callback: CallbackQuery) -> None:
+    await callback.answer()
+    if callback.message:
+        await callback.message.delete()
+
+
+@router.callback_query(F.data.startswith("ft:"))
+async def favorite_tag_toggle(
+    callback: CallbackQuery,
+    state: FSMContext,
+    tags_repository: FavoriteTagsRepository,
+) -> None:
+    if not callback.data:
+        return
+
+    parts = callback.data.split(":", 2)
+    if len(parts) != 3 or parts[1] not in FAVORITE_TAG_LABELS:
+        await callback.answer("Неизвестная метка.")
+        return
+
+    tag = parts[1]
+    venue_id = parts[2]
+    data = await state.get_data()
+    results = data.get("results")
+    if data.get("category") != "favorites" or not isinstance(results, list):
+        await callback.answer("Список избранного устарел.")
+        return
+
+    dict_results = [item for item in results if isinstance(item, dict)]
+    all_results_raw = data.get("favorite_all_results")
+    all_results = (
+        [item for item in all_results_raw if isinstance(item, dict)]
+        if isinstance(all_results_raw, list)
+        else dict_results
+    )
+    venue = _find_result(all_results, venue_id)
+    if venue is None:
+        await callback.answer("Карточка устарела. Откройте избранное снова.")
+        return
+
+    try:
+        added = await tags_repository.toggle_tag(
+            user_id=callback.from_user.id,
+            venue=venue,
+            tag=tag,
+        )
+    except ValueError as exc:
+        if str(exc) != "tag requires a saved favorite":
+            raise
+        await callback.answer("Избранное изменилось. Откройте его снова.")
+        return
+
+    current_tags = set(venue.personal_tags)
+    if added:
+        current_tags.add(tag)
+    else:
+        current_tags.discard(tag)
+    ordered_tags = tuple(
+        key for key in FAVORITE_TAG_LABELS if key in current_tags
+    )
+    updated_venue = replace(venue, personal_tags=ordered_tags)
+    updated_all_results = [
+        asdict(updated_venue) if item.get("id") == venue_id else item
+        for item in all_results
+    ]
+
+    active_filter = (
+        data.get("favorite_filter")
+        if isinstance(data.get("favorite_filter"), str)
+        else None
+    )
+    filtered_results = (
+        [
+            item
+            for item in updated_all_results
+            if active_filter in tuple(item.get("personal_tags", ()))
+        ]
+        if active_filter in FAVORITE_TAG_LABELS
+        else updated_all_results
+    )
+    index = data.get("result_index", 0)
+    if not isinstance(index, int):
+        index = 0
+    index = max(0, min(index, max(0, len(filtered_results) - 1)))
+    await state.update_data(
+        favorite_all_results=updated_all_results,
+        results=filtered_results,
+        result_index=index,
+    )
+
+    await callback.answer(
+        f"{'Добавлена' if added else 'Снята'}: {FAVORITE_TAG_LABELS[tag]}"
+    )
+    if callback.message:
+        await callback.message.edit_reply_markup(
+            reply_markup=favorite_tags_keyboard(
+                venue_id,
+                current_tags=ordered_tags,
+            )
+        )
+
+
+@router.callback_query(F.data == "ff:menu")
+async def favorite_filter_menu(
+    callback: CallbackQuery,
+    state: FSMContext,
+) -> None:
+    await callback.answer()
+    if not callback.message:
+        return
+
+    data = await state.get_data()
+    all_results_raw = data.get("favorite_all_results")
+    if data.get("category") != "favorites" or not isinstance(all_results_raw, list):
+        return
+
+    all_results = [
+        _venue_from_dict(item)
+        for item in all_results_raw
+        if isinstance(item, dict)
+    ]
+    if not all_results:
+        return
+
+    active = (
+        data.get("favorite_filter")
+        if isinstance(data.get("favorite_filter"), str)
+        else None
+    )
+    await callback.message.edit_reply_markup(
+        reply_markup=favorite_filter_keyboard(
+            total=len(all_results),
+            counts=favorite_tag_counts(all_results),
+            active_tag=active,
+        )
+    )
+
+
+@router.callback_query(F.data.startswith("ff:"))
+async def favorite_filter_selected(
+    callback: CallbackQuery,
+    state: FSMContext,
+) -> None:
+    if not callback.data:
+        return
+
+    selected = callback.data.split(":", 1)[1]
+    if selected != "all" and selected not in FAVORITE_TAG_LABELS:
+        await callback.answer("Неизвестный фильтр.")
+        return
+
+    data = await state.get_data()
+    all_results_raw = data.get("favorite_all_results")
+    if data.get("category") != "favorites" or not isinstance(all_results_raw, list):
+        await callback.answer("Список избранного устарел.")
+        return
+
+    all_results = [
+        item
+        for item in all_results_raw
+        if isinstance(item, dict)
+    ]
+    active = None if selected == "all" else selected
+    filtered = (
+        [
+            item
+            for item in all_results
+            if active in tuple(item.get("personal_tags", ()))
+        ]
+        if active is not None
+        else all_results
+    )
+
+    if not filtered:
+        await callback.answer("С этой меткой пока нет мест.")
+        return
+
+    await state.update_data(
+        results=filtered,
+        result_index=0,
+        favorite_filter=active,
+    )
+    await callback.answer(
+        "Показаны все избранные"
+        if active is None
+        else f"Фильтр: {FAVORITE_TAG_LABELS[active]}"
+    )
+    await _edit_current_result(callback, state)
 
 
 @router.callback_query(F.data.startswith("rate:"))
