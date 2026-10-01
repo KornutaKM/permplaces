@@ -1,4 +1,4 @@
-from dataclasses import asdict
+from dataclasses import asdict, replace
 
 from aiogram import F, Router
 from aiogram.exceptions import TelegramBadRequest
@@ -13,6 +13,7 @@ from app.filters import PlaceFilters
 from app.providers.capabilities import ProviderStatus, render_provider_statuses
 from app.providers.overpass import ProviderError
 from app.query import parse_search_query, plan_search_query
+from app.ratings import RatingsRepository
 from app.scenarios import (
     plan_scenario,
     rank_scenario_candidates,
@@ -28,6 +29,7 @@ from app.ui import (
     filters_keyboard,
     home_keyboard,
     primary_photo_url,
+    rating_keyboard,
     render_venue_card,
     results_keyboard,
     route_keyboard,
@@ -383,11 +385,13 @@ async def favorites(
     message: Message,
     state: FSMContext,
     favorites_repository: FavoritesRepository,
+    ratings_repository: RatingsRepository,
 ) -> None:
     if message.from_user is None:
         return
 
     venues = await favorites_repository.list_for_user(user_id=message.from_user.id)
+    venues = await ratings_repository.enrich_many(venues)
     if not venues:
         await message.answer(
             "❤️ <b>Избранное пока пусто.</b>\n\n"
@@ -681,6 +685,95 @@ async def favorite(
         return
 
     await _edit_current_result(callback, state)
+
+
+@router.callback_query(F.data.startswith("rate:"))
+async def rate_venue(callback: CallbackQuery, state: FSMContext) -> None:
+    await callback.answer()
+    if not callback.message or not callback.data:
+        return
+
+    venue_id = callback.data.split(":", 1)[1]
+    data = await state.get_data()
+    results = data.get("results")
+    if not isinstance(results, list):
+        await callback.message.answer("Карточка устарела. Запустите поиск снова.")
+        return
+
+    dict_results = [item for item in results if isinstance(item, dict)]
+    venue = _find_result(dict_results, venue_id)
+    if venue is None:
+        await callback.message.answer("Карточка устарела. Запустите поиск снова.")
+        return
+
+    await callback.message.answer(
+        f"⭐ <b>Оцените {venue.name}</b>\n\n"
+        "Оценка хранится как мнение пользователей PermPlaces и не заменяет "
+        "рейтинг внешнего источника.",
+        reply_markup=rating_keyboard(venue.id),
+    )
+
+
+@router.callback_query(F.data.startswith("rating:"))
+async def rating_selected(
+    callback: CallbackQuery,
+    state: FSMContext,
+    ratings_repository: RatingsRepository,
+) -> None:
+    if not callback.data:
+        return
+
+    parts = callback.data.split(":", 2)
+    if len(parts) != 3:
+        await callback.answer("Некорректная оценка.")
+        return
+
+    try:
+        score = int(parts[1])
+    except ValueError:
+        await callback.answer("Некорректная оценка.")
+        return
+    if not 1 <= score <= 5:
+        await callback.answer("Оценка должна быть от 1 до 5.")
+        return
+
+    venue_id = parts[2]
+    data = await state.get_data()
+    results = data.get("results")
+    if not isinstance(results, list):
+        await callback.answer("Карточка устарела. Запустите поиск снова.")
+        return
+
+    dict_results = [item for item in results if isinstance(item, dict)]
+    venue = _find_result(dict_results, venue_id)
+    if venue is None:
+        await callback.answer("Карточка устарела. Запустите поиск снова.")
+        return
+
+    summary = await ratings_repository.set_rating(
+        user_id=callback.from_user.id,
+        venue=venue,
+        score=score,
+    )
+    updated_venue = replace(
+        venue,
+        community_rating=summary.average,
+        community_rating_count=summary.count or None,
+    )
+    updated_results = [
+        asdict(updated_venue) if item.get("id") == venue_id else item
+        for item in dict_results
+    ]
+    await state.update_data(results=updated_results)
+    await callback.answer("Оценка сохранена ⭐")
+
+    if callback.message:
+        average = summary.average if summary.average is not None else float(score)
+        await callback.message.edit_text(
+            f"⭐ Ваша оценка: <b>{score}/5</b>\n"
+            f"👥 PermPlaces: <b>{average:.1f}/5</b> "
+            f"({summary.count})"
+        )
 
 
 @router.callback_query(F.data.startswith("route:"))
