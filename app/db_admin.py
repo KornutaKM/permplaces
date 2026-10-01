@@ -24,6 +24,7 @@ class DatabaseInspection:
     favorites: int | None
     favorite_aliases: int | None
     notes: int | None
+    tags: int | None
     ratings: int | None
     provider_budget_rows: int | None
 
@@ -110,6 +111,7 @@ def inspect_database(path: str | Path) -> DatabaseInspection:
                     "favorite_identity_aliases",
                 ),
                 notes=_table_count(connection, "favorite_notes"),
+                tags=_table_count(connection, "favorite_tags"),
                 ratings=_table_count(connection, "venue_ratings"),
                 provider_budget_rows=_table_count(
                     connection,
@@ -448,6 +450,7 @@ def main() -> int:
                 f"favorites={inspection.favorites} "
                 f"favorite_aliases={inspection.favorite_aliases} "
                 f"notes={inspection.notes} "
+                f"tags={inspection.tags} "
                 f"ratings={inspection.ratings} "
                 f"provider_budget_rows={inspection.provider_budget_rows}"
             )

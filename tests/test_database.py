@@ -32,12 +32,14 @@ async def test_initialize_database_creates_current_schema(tmp_path) -> None:
         "favorites",
         "favorite_identity_aliases",
         "favorite_notes",
+        "favorite_tags",
         "venue_ratings",
         "provider_daily_request_budget",
     } <= tables
     assert "idx_venue_ratings_venue_key" in indexes
     assert "idx_favorite_identity_aliases_lookup" in indexes
     assert "idx_favorite_notes_identity_key" in indexes
+    assert "idx_favorite_tags_identity_key" in indexes
 
 
 @pytest.mark.asyncio
@@ -93,6 +95,9 @@ async def test_initialize_database_migrates_legacy_tables_without_data_loss(
         )
         assert database.execute(
             "SELECT COUNT(*) FROM favorite_notes"
+        ).fetchone()[0] == 0
+        assert database.execute(
+            "SELECT COUNT(*) FROM favorite_tags"
         ).fetchone()[0] == 0
         assert (
             database.execute(
@@ -382,3 +387,121 @@ async def test_schema_v2_migration_adds_notes_without_losing_existing_data(
             "SELECT COUNT(*) FROM provider_daily_request_budget"
         ).fetchone()[0] == 1
         assert database.execute("SELECT COUNT(*) FROM favorite_notes").fetchone()[0] == 0
+
+
+
+@pytest.mark.asyncio
+async def test_schema_v3_migration_adds_tags_without_losing_existing_user_data(
+    tmp_path,
+) -> None:
+    path = tmp_path / "permplaces.db"
+    with sqlite3.connect(path) as database:
+        database.execute("PRAGMA user_version = 3")
+        database.execute(
+            """
+            CREATE TABLE favorites (
+                user_id INTEGER NOT NULL,
+                venue_id TEXT NOT NULL,
+                payload TEXT NOT NULL,
+                created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                PRIMARY KEY (user_id, venue_id)
+            )
+            """
+        )
+        database.execute(
+            """
+            INSERT INTO favorites (user_id, venue_id, payload)
+            VALUES (1, 'osm:node/1', '{}')
+            """
+        )
+        database.execute(
+            """
+            CREATE TABLE favorite_identity_aliases (
+                user_id INTEGER NOT NULL,
+                venue_id TEXT NOT NULL,
+                identity_key TEXT NOT NULL,
+                PRIMARY KEY (user_id, venue_id, identity_key)
+            )
+            """
+        )
+        database.execute(
+            """
+            INSERT INTO favorite_identity_aliases (
+                user_id,
+                venue_id,
+                identity_key
+            )
+            VALUES (1, 'osm:node/1', 'osm:node/1')
+            """
+        )
+        database.execute(
+            """
+            CREATE TABLE favorite_notes (
+                user_id INTEGER NOT NULL,
+                identity_key TEXT NOT NULL,
+                note TEXT NOT NULL CHECK (length(note) BETWEEN 1 AND 500),
+                updated_at_ns INTEGER NOT NULL,
+                PRIMARY KEY (user_id, identity_key)
+            )
+            """
+        )
+        database.execute(
+            """
+            INSERT INTO favorite_notes (
+                user_id,
+                identity_key,
+                note,
+                updated_at_ns
+            )
+            VALUES (1, 'osm:node/1', 'Сохранить', 111)
+            """
+        )
+        database.execute(
+            """
+            CREATE TABLE venue_ratings (
+                user_id INTEGER NOT NULL,
+                venue_key TEXT NOT NULL,
+                score INTEGER NOT NULL CHECK (score BETWEEN 1 AND 5),
+                updated_at_ns INTEGER NOT NULL,
+                PRIMARY KEY (user_id, venue_key)
+            )
+            """
+        )
+        database.execute(
+            """
+            INSERT INTO venue_ratings (user_id, venue_key, score, updated_at_ns)
+            VALUES (1, 'osm:node/1', 5, 123)
+            """
+        )
+        database.execute(
+            """
+            CREATE TABLE provider_daily_request_budget (
+                provider TEXT NOT NULL,
+                day TEXT NOT NULL,
+                used INTEGER NOT NULL CHECK (used >= 0),
+                PRIMARY KEY (provider, day)
+            )
+            """
+        )
+        database.execute(
+            """
+            INSERT INTO provider_daily_request_budget (provider, day, used)
+            VALUES ('geoapify', '2026-10-01', 7)
+            """
+        )
+        database.commit()
+
+    await initialize_database(str(path))
+
+    with sqlite3.connect(path) as database:
+        assert database.execute("PRAGMA user_version").fetchone()[0] == SCHEMA_VERSION
+        assert database.execute("SELECT COUNT(*) FROM favorites").fetchone()[0] == 1
+        assert database.execute(
+            "SELECT COUNT(*) FROM favorite_identity_aliases"
+        ).fetchone()[0] == 1
+        assert database.execute("SELECT note FROM favorite_notes").fetchone() == ("Сохранить",)
+        assert database.execute("SELECT COUNT(*) FROM venue_ratings").fetchone()[0] == 1
+        assert database.execute(
+            "SELECT used FROM provider_daily_request_budget"
+        ).fetchone() == (7,)
+        assert database.execute("SELECT COUNT(*) FROM favorite_tags").fetchone()[0] == 0

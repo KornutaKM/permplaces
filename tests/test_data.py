@@ -3,12 +3,15 @@ from urllib.parse import parse_qs, urlsplit
 from app.data import PhotoRef, SourceRef, Venue
 from app.ui import (
     delete_data_confirmation_keyboard,
+    favorite_filter_keyboard,
     favorite_note_keyboard,
+    favorite_tags_keyboard,
     filters_keyboard,
     mydata_keyboard,
     primary_photo_url,
     rating_keyboard,
     render_venue_card,
+    results_keyboard,
     route_keyboard,
     share_venue_url,
     venue_keyboard,
@@ -686,3 +689,118 @@ def test_favorite_note_keyboard_requires_explicit_remove_or_cancel() -> None:
         "favorite_note:remove:osm:node/1",
         "favorite_note:cancel",
     ]
+
+
+
+def test_personal_tags_render_as_user_labels_not_provider_facts() -> None:
+    venue = Venue(
+        id="osm:node/tags-card",
+        name="Tagged",
+        category="cafe",
+        category_label="Кофейня",
+        latitude=58.01,
+        longitude=56.25,
+        source="osm",
+        source_id="node/tags-card",
+        personal_tags=("want", "work", "unknown"),
+    )
+
+    card = render_venue_card(venue)
+
+    assert "🏷 Ваши метки:" in card
+    assert "📌 Хочу сходить" in card
+    assert "💻 Для работы" in card
+    assert "unknown" not in card
+
+
+def test_favorite_tags_keyboard_marks_current_tags() -> None:
+    keyboard = favorite_tags_keyboard(
+        "osm:node/tags",
+        current_tags=("return", "friends"),
+    )
+    buttons = [
+        button
+        for row in keyboard.inline_keyboard
+        for button in row
+    ]
+
+    assert any(
+        button.text == "✅ 🔁 Вернуться"
+        and button.callback_data == "ft:return:osm:node/tags"
+        for button in buttons
+    )
+    assert any(
+        button.text == "✅ 👥 С друзьями"
+        and button.callback_data == "ft:friends:osm:node/tags"
+        for button in buttons
+    )
+    assert buttons[-1].callback_data == "ft:close"
+
+
+def test_favorite_filter_keyboard_shows_counts_and_active_filter() -> None:
+    keyboard = favorite_filter_keyboard(
+        total=4,
+        counts={"want": 2, "return": 1, "work": 0, "family": 1, "friends": 0},
+        active_tag="want",
+    )
+    labels = [
+        button.text
+        for row in keyboard.inline_keyboard
+        for button in row
+    ]
+
+    assert "Все (4)" in labels
+    assert "✅ 📌 Хочу сходить (2)" in labels
+    assert "💻 Для работы (0)" in labels
+
+
+def test_favorites_results_keyboard_exposes_filter_and_remove_semantics() -> None:
+    keyboard = results_keyboard(
+        "osm:node/favorite",
+        can_previous=False,
+        can_next=True,
+        favorites_mode=True,
+        active_favorite_tag="work",
+    )
+    buttons = [
+        button
+        for row in keyboard.inline_keyboard
+        for button in row
+    ]
+    labels = [button.text for button in buttons]
+
+    assert "💔 Удалить из избранного" in labels
+    assert "🏷 Фильтр по метке: 💻 Для работы" in labels
+    filter_button = next(button for button in buttons if button.callback_data == "ff:menu")
+    assert filter_button.text.startswith("🏷 Фильтр")
+
+
+def test_venue_keyboard_exposes_tags_only_in_favorites_context() -> None:
+    venue = Venue(
+        id="osm:node/tag-button",
+        name="Tag button",
+        category="cafe",
+        category_label="Кофейня",
+        latitude=58.01,
+        longitude=56.25,
+        source="osm",
+        source_id="node/tag-button",
+    )
+
+    normal_labels = [
+        button.text
+        for row in venue_keyboard(venue).inline_keyboard
+        for button in row
+    ]
+    favorite_labels = [
+        button.text
+        for row in venue_keyboard(
+            venue,
+            allow_note=True,
+            allow_tags=True,
+        ).inline_keyboard
+        for button in row
+    ]
+
+    assert "🏷 Мои метки" not in normal_labels
+    assert "🏷 Мои метки" in favorite_labels

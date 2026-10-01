@@ -10,6 +10,7 @@ from aiogram.types import (
 
 from app.data import Venue
 from app.districts import PERM_DISTRICTS
+from app.tags import FAVORITE_TAG_KEYS, FAVORITE_TAG_LABELS
 
 CATEGORY_LABELS = {
     "restaurant": "🍽 Рестораны",
@@ -155,6 +156,8 @@ def results_keyboard(
     *,
     can_previous: bool,
     can_next: bool,
+    favorites_mode: bool = False,
+    active_favorite_tag: str | None = None,
 ) -> InlineKeyboardMarkup:
     navigation: list[InlineKeyboardButton] = []
     if can_previous:
@@ -164,10 +167,23 @@ def results_keyboard(
     if can_next:
         navigation.append(InlineKeyboardButton(text="Следующее →", callback_data="results:next"))
 
+    favorite_label = "💔 Удалить из избранного" if favorites_mode else "❤️ В избранное"
     rows: list[list[InlineKeyboardButton]] = [
         [InlineKeyboardButton(text="Подробнее", callback_data=f"venue:{venue_id}")],
-        [InlineKeyboardButton(text="❤️ В избранное", callback_data=f"favorite:{venue_id}")],
+        [InlineKeyboardButton(text=favorite_label, callback_data=f"favorite:{venue_id}")],
     ]
+    if favorites_mode:
+        filter_label = "🏷 Фильтр по метке"
+        if active_favorite_tag in FAVORITE_TAG_LABELS:
+            filter_label += f": {FAVORITE_TAG_LABELS[active_favorite_tag]}"
+        rows.append(
+            [
+                InlineKeyboardButton(
+                    text=filter_label,
+                    callback_data="ff:menu",
+                )
+            ]
+        )
     if navigation:
         rows.append(navigation)
     rows.append([InlineKeyboardButton(text="← К категориям", callback_data="nav:categories")])
@@ -331,6 +347,68 @@ def favorite_note_keyboard(
     return InlineKeyboardMarkup(inline_keyboard=rows)
 
 
+def favorite_tags_keyboard(
+    venue_id: str,
+    *,
+    current_tags: tuple[str, ...],
+) -> InlineKeyboardMarkup:
+    active = set(current_tags)
+    rows = [
+        [
+            InlineKeyboardButton(
+                text=("✅ " if tag in active else "") + FAVORITE_TAG_LABELS[tag],
+                callback_data=f"ft:{tag}:{venue_id}",
+            )
+        ]
+        for tag in FAVORITE_TAG_KEYS
+    ]
+    rows.append(
+        [
+            InlineKeyboardButton(
+                text="← Закрыть метки",
+                callback_data="ft:close",
+            )
+        ]
+    )
+    return InlineKeyboardMarkup(inline_keyboard=rows)
+
+
+def favorite_filter_keyboard(
+    *,
+    total: int,
+    counts: dict[str, int],
+    active_tag: str | None,
+) -> InlineKeyboardMarkup:
+    rows = [
+        [
+            InlineKeyboardButton(
+                text=("✅ " if active_tag is None else "") + f"Все ({total})",
+                callback_data="ff:all",
+            )
+        ]
+    ]
+    for tag in FAVORITE_TAG_KEYS:
+        count = counts.get(tag, 0)
+        rows.append(
+            [
+                InlineKeyboardButton(
+                    text=("✅ " if active_tag == tag else "")
+                    + f"{FAVORITE_TAG_LABELS[tag]} ({count})",
+                    callback_data=f"ff:{tag}",
+                )
+            ]
+        )
+    rows.append(
+        [
+            InlineKeyboardButton(
+                text="← К результатам",
+                callback_data="results:current",
+            )
+        ]
+    )
+    return InlineKeyboardMarkup(inline_keyboard=rows)
+
+
 def rating_keyboard(
     venue_id: str,
     *,
@@ -357,7 +435,12 @@ def rating_keyboard(
     return InlineKeyboardMarkup(inline_keyboard=rows)
 
 
-def venue_keyboard(venue: Venue, *, allow_note: bool = False) -> InlineKeyboardMarkup:
+def venue_keyboard(
+    venue: Venue,
+    *,
+    allow_note: bool = False,
+    allow_tags: bool = False,
+) -> InlineKeyboardMarkup:
     primary_actions = [
         InlineKeyboardButton(text="📍 Маршрут", callback_data=f"route:{venue.id}")
     ]
@@ -385,6 +468,15 @@ def venue_keyboard(venue: Venue, *, allow_note: bool = False) -> InlineKeyboardM
                 InlineKeyboardButton(
                     text="📝 Заметка",
                     callback_data=f"favorite_note:edit:{venue.id}",
+                )
+            ]
+        )
+    if allow_tags:
+        rows.append(
+            [
+                InlineKeyboardButton(
+                    text="🏷 Мои метки",
+                    callback_data=f"ft:menu:{venue.id}",
                 )
             ]
         )
@@ -442,6 +534,16 @@ def render_venue_card(venue: Venue, *, position: int = 1, total: int = 1) -> str
 
     if venue.personal_note:
         lines.append(f"📝 Ваша заметка: {escape(venue.personal_note)}")
+
+    tag_labels = [
+        FAVORITE_TAG_LABELS[tag]
+        for tag in venue.personal_tags
+        if tag in FAVORITE_TAG_LABELS
+    ]
+    if tag_labels:
+        lines.append(
+            "🏷 Ваши метки: " + ", ".join(escape(label) for label in tag_labels)
+        )
 
     details = [escape(venue.category_label)]
     if venue.price_label:

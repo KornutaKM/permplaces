@@ -48,6 +48,10 @@ def _venue_from_payload(payload: str) -> Venue | None:
             if isinstance(item, dict)
         )
 
+    personal_tags = value.get("personal_tags")
+    if isinstance(personal_tags, list):
+        value["personal_tags"] = tuple(str(item) for item in personal_tags)
+
     try:
         return Venue(**value)
     except TypeError:
@@ -112,6 +116,14 @@ class FavoritesRepository:
                         """,
                         (user_id, *sorted(note_keys)),
                     )
+                    await database.execute(
+                        f"""
+                        DELETE FROM favorite_tags
+                        WHERE user_id = ?
+                          AND identity_key IN ({note_placeholders})
+                        """,
+                        (user_id, *sorted(note_keys)),
+                    )
 
                     for stored_id in matching_ids:
                         await database.execute(
@@ -139,6 +151,7 @@ class FavoritesRepository:
                     community_rating=None,
                     community_rating_count=None,
                     personal_note=None,
+                    personal_tags=(),
                 )
                 payload = json.dumps(
                     asdict(persistent_venue),

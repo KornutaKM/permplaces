@@ -8,6 +8,7 @@ from app.notes import NotesRepository
 from app.privacy import UserDataRepository
 from app.ratings import RatingsRepository
 from app.storage import FavoritesRepository
+from app.tags import FavoriteTagsRepository
 
 
 def venue(source_id: str) -> Venue:
@@ -29,6 +30,7 @@ async def test_user_data_summary_counts_only_requested_user(tmp_path) -> None:
     favorites = FavoritesRepository(path)
     ratings = RatingsRepository(path)
     notes = NotesRepository(path)
+    tags = FavoriteTagsRepository(path)
     repository = UserDataRepository(path)
     await repository.initialize()
 
@@ -39,13 +41,16 @@ async def test_user_data_summary_counts_only_requested_user(tmp_path) -> None:
     await ratings.set_rating(user_id=11, venue=venue("node/2"), score=1)
     await notes.set_note(user_id=10, venue=venue("node/1"), text="Моя заметка")
     await notes.set_note(user_id=11, venue=venue("node/2"), text="Чужая заметка")
+    await tags.toggle_tag(user_id=10, venue=venue("node/1"), tag="want")
+    await tags.toggle_tag(user_id=11, venue=venue("node/2"), tag="friends")
 
     summary = await repository.summary_for_user(user_id=10)
 
     assert summary.favorites == 1
     assert summary.ratings == 2
     assert summary.notes == 1
-    assert summary.total_rows == 4
+    assert summary.tags == 1
+    assert summary.total_rows == 5
 
 
 @pytest.mark.asyncio
@@ -54,6 +59,7 @@ async def test_user_data_delete_is_atomic_and_user_scoped(tmp_path) -> None:
     favorites = FavoritesRepository(path)
     ratings = RatingsRepository(path)
     notes = NotesRepository(path)
+    tags = FavoriteTagsRepository(path)
     repository = UserDataRepository(path)
     await repository.initialize()
 
@@ -63,18 +69,22 @@ async def test_user_data_delete_is_atomic_and_user_scoped(tmp_path) -> None:
     await ratings.set_rating(user_id=21, venue=venue("node/21"), score=3)
     await notes.set_note(user_id=20, venue=venue("node/20"), text="Удалить")
     await notes.set_note(user_id=21, venue=venue("node/21"), text="Оставить")
+    await tags.toggle_tag(user_id=20, venue=venue("node/20"), tag="return")
+    await tags.toggle_tag(user_id=21, venue=venue("node/21"), tag="work")
 
     deleted = await repository.delete_for_user(user_id=20)
 
     assert deleted.favorites == 1
     assert deleted.ratings == 1
     assert deleted.notes == 1
-    assert await repository.summary_for_user(user_id=20) == deleted.__class__(0, 0, 0)
+    assert deleted.tags == 1
+    assert await repository.summary_for_user(user_id=20) == deleted.__class__(0, 0, 0, 0)
 
     other = await repository.summary_for_user(user_id=21)
     assert other.favorites == 1
     assert other.ratings == 1
     assert other.notes == 1
+    assert other.tags == 1
 
     with sqlite3.connect(path) as database:
         user_20_aliases = database.execute(
@@ -145,6 +155,7 @@ async def test_user_data_export_is_scoped_and_omits_telegram_user_id(tmp_path) -
     favorites = FavoritesRepository(path)
     ratings = RatingsRepository(path)
     notes = NotesRepository(path)
+    tags = FavoriteTagsRepository(path)
     repository = UserDataRepository(path)
     await repository.initialize()
 
@@ -162,6 +173,8 @@ async def test_user_data_export_is_scoped_and_omits_telegram_user_id(tmp_path) -
         venue=venue("node/export-51"),
         text="Чужая заметка",
     )
+    await tags.toggle_tag(user_id=50, venue=venue("node/export-50"), tag="want")
+    await tags.toggle_tag(user_id=51, venue=venue("node/export-51"), tag="friends")
 
     export = await repository.export_for_user(user_id=50)
     decoded = export.content.decode("utf-8")
@@ -170,8 +183,9 @@ async def test_user_data_export_is_scoped_and_omits_telegram_user_id(tmp_path) -
     assert export.favorites == 1
     assert export.ratings == 1
     assert export.notes == 1
+    assert export.tags == 1
     assert payload["format"] == "permplaces-user-data"
-    assert payload["format_version"] == 2
+    assert payload["format_version"] == 3
     assert len(payload["favorites"]) == 1
     assert payload["favorites"][0]["venue"]["id"] == "osm:node/export-50"
     assert payload["community_ratings"][0]["venue_key"] == "osm:node/export-50"
@@ -180,6 +194,9 @@ async def test_user_data_export_is_scoped_and_omits_telegram_user_id(tmp_path) -
     assert payload["favorite_notes"][0]["identity_key"] == "osm:node/export-50"
     assert payload["favorite_notes"][0]["note"] == "Экспортируемая заметка"
     assert payload["favorite_notes"][0]["updated_at_utc"].endswith("Z")
+    assert payload["favorite_tags"][0]["identity_key"] == "osm:node/export-50"
+    assert payload["favorite_tags"][0]["tag"] == "want"
+    assert payload["favorite_tags"][0]["updated_at_utc"].endswith("Z")
     assert '"user_id"' not in decoded
     assert "node/export-51" not in decoded
 

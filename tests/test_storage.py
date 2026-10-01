@@ -8,6 +8,7 @@ import pytest
 from app.data import FieldSource, PhotoRef, SourceRef, Venue
 from app.notes import NotesRepository
 from app.storage import FavoritesRepository
+from app.tags import FavoriteTagsRepository
 
 
 @pytest.mark.asyncio
@@ -29,6 +30,7 @@ async def test_favorites_survive_repository_recreation(tmp_path) -> None:
         community_rating=4.5,
         community_rating_count=12,
         personal_note="transient note",
+        personal_tags=("want", "work"),
     )
 
     repository = FavoritesRepository(str(database_path))
@@ -50,6 +52,7 @@ async def test_favorites_survive_repository_recreation(tmp_path) -> None:
     assert favorites[0].community_rating is None
     assert favorites[0].community_rating_count is None
     assert favorites[0].personal_note is None
+    assert favorites[0].personal_tags == ()
 
 
 @pytest.mark.asyncio
@@ -365,3 +368,32 @@ async def test_removing_favorite_also_removes_personal_note_across_aliases(
         ).fetchone()
 
     assert note_count == (0,)
+
+
+
+@pytest.mark.asyncio
+async def test_removing_favorite_also_removes_personal_tags_across_aliases(
+    tmp_path,
+) -> None:
+    database_path = tmp_path / "permplaces.db"
+    favorites = FavoritesRepository(str(database_path))
+    tags = FavoriteTagsRepository(str(database_path))
+    await favorites.initialize()
+
+    _geo, merged = aliased_venues()
+    assert await favorites.toggle(user_id=87, venue=merged) is True
+    assert await tags.toggle_tag(user_id=87, venue=merged, tag="want") is True
+    assert await tags.toggle_tag(user_id=87, venue=merged, tag="work") is True
+
+    assert await favorites.toggle(user_id=87, venue=merged) is False
+
+    with sqlite3.connect(database_path) as database:
+        tag_count = database.execute(
+            """
+            SELECT COUNT(*)
+            FROM favorite_tags
+            WHERE user_id = 87
+            """
+        ).fetchone()
+
+    assert tag_count == (0,)
