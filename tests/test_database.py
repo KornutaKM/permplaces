@@ -104,3 +104,26 @@ async def test_initialize_database_is_idempotent(tmp_path) -> None:
     with sqlite3.connect(path) as database:
         assert database.execute("PRAGMA quick_check").fetchone()[0] == "ok"
         assert database.execute("PRAGMA user_version").fetchone()[0] == SCHEMA_VERSION
+
+
+
+@pytest.mark.asyncio
+async def test_initialize_database_rejects_malformed_legacy_table(tmp_path) -> None:
+    path = tmp_path / "permplaces.db"
+    with sqlite3.connect(path) as database:
+        database.execute(
+            """
+            CREATE TABLE favorites (
+                user_id INTEGER NOT NULL,
+                venue_id TEXT NOT NULL,
+                PRIMARY KEY (user_id, venue_id)
+            )
+            """
+        )
+        database.commit()
+
+    with pytest.raises(DatabaseSchemaError, match="missing required columns"):
+        await initialize_database(str(path))
+
+    with sqlite3.connect(path) as database:
+        assert database.execute("PRAGMA user_version").fetchone()[0] == 0
