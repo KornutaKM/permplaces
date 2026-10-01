@@ -1,3 +1,4 @@
+import json
 import sqlite3
 
 import pytest
@@ -125,3 +126,62 @@ async def test_user_data_delete_does_not_touch_provider_budget(tmp_path) -> None
         ).fetchone()
 
     assert used == (17,)
+
+
+
+@pytest.mark.asyncio
+async def test_user_data_export_is_scoped_and_omits_telegram_user_id(tmp_path) -> None:
+    path = str(tmp_path / "permplaces.db")
+    favorites = FavoritesRepository(path)
+    ratings = RatingsRepository(path)
+    repository = UserDataRepository(path)
+    await repository.initialize()
+
+    await favorites.toggle(user_id=50, venue=venue("node/export-50"))
+    await favorites.toggle(user_id=51, venue=venue("node/export-51"))
+    await ratings.set_rating(user_id=50, venue=venue("node/export-50"), score=5)
+    await ratings.set_rating(user_id=51, venue=venue("node/export-51"), score=1)
+
+    export = await repository.export_for_user(user_id=50)
+    decoded = export.content.decode("utf-8")
+    payload = json.loads(decoded)
+
+    assert export.favorites == 1
+    assert export.ratings == 1
+    assert payload["format"] == "permplaces-user-data"
+    assert payload["format_version"] == 1
+    assert len(payload["favorites"]) == 1
+    assert payload["favorites"][0]["venue"]["id"] == "osm:node/export-50"
+    assert payload["community_ratings"][0]["venue_key"] == "osm:node/export-50"
+    assert payload["community_ratings"][0]["score"] == 5
+    assert payload["community_ratings"][0]["updated_at_utc"].endswith("Z")
+    assert '"user_id"' not in decoded
+    assert "node/export-51" not in decoded
+
+
+@pytest.mark.asyncio
+async def test_user_data_export_marks_invalid_favorite_payload_without_echoing_it(
+    tmp_path,
+) -> None:
+    path = str(tmp_path / "permplaces.db")
+    repository = UserDataRepository(path)
+    await repository.initialize()
+
+    with sqlite3.connect(path) as database:
+        database.execute(
+            """
+            INSERT INTO favorites (user_id, venue_id, payload)
+            VALUES (60, 'osm:node/corrupt', 'raw-secret-looking-garbage')
+            """
+        )
+        database.commit()
+
+    export = await repository.export_for_user(user_id=60)
+    decoded = export.content.decode("utf-8")
+    payload = json.loads(decoded)
+
+    assert export.favorites == 1
+    assert payload["favorites"][0]["venue_id"] == "osm:node/corrupt"
+    assert payload["favorites"][0]["venue"] is None
+    assert payload["favorites"][0]["payload_status"] == "invalid"
+    assert "raw-secret-looking-garbage" not in decoded

@@ -274,10 +274,16 @@ def mydata_keyboard(
         inline_keyboard=[
             [
                 InlineKeyboardButton(
+                    text="📦 Скачать JSON",
+                    callback_data="privacy:export",
+                )
+            ],
+            [
+                InlineKeyboardButton(
                     text="🗑 Удалить мои данные",
                     callback_data="privacy:delete",
                 )
-            ]
+            ],
         ]
     )
 
