@@ -19,6 +19,7 @@ from app.providers.capabilities import (
 )
 from app.ratings import RatingsRepository
 from app.storage import FavoritesRepository
+from app.tags import FavoriteTagsRepository
 
 
 class FakeBudget:
@@ -74,6 +75,7 @@ async def test_mydata_reports_only_current_user_counts(tmp_path) -> None:
     favorites = FavoritesRepository(path)
     ratings = RatingsRepository(path)
     notes = NotesRepository(path)
+    tags = FavoriteTagsRepository(path)
     repository = UserDataRepository(path)
     await repository.initialize()
 
@@ -83,6 +85,8 @@ async def test_mydata_reports_only_current_user_counts(tmp_path) -> None:
     await ratings.set_rating(user_id=200, venue=venue(), score=1)
     await notes.set_note(user_id=100, venue=venue(), text="Личная")
     await notes.set_note(user_id=200, venue=venue(), text="Чужая")
+    await tags.toggle_tag(user_id=100, venue=venue(), tag="want")
+    await tags.toggle_tag(user_id=200, venue=venue(), tag="friends")
 
     answer = AsyncMock()
     message = SimpleNamespace(
@@ -96,6 +100,7 @@ async def test_mydata_reports_only_current_user_counts(tmp_path) -> None:
     assert "Избранное: <b>1</b>" in rendered
     assert "Мои оценки: <b>1</b>" in rendered
     assert "Личные заметки: <b>1</b>" in rendered
+    assert "Мои метки: <b>1</b>" in rendered
     assert "100" not in rendered
     assert "200" not in rendered
     assert answer.await_args.kwargs["reply_markup"] is not None
@@ -109,12 +114,14 @@ async def test_confirmed_privacy_delete_clears_persistent_and_session_data(
     favorites = FavoritesRepository(path)
     ratings = RatingsRepository(path)
     notes = NotesRepository(path)
+    tags = FavoriteTagsRepository(path)
     repository = UserDataRepository(path)
     await repository.initialize()
 
     await favorites.toggle(user_id=300, venue=venue())
     await ratings.set_rating(user_id=300, venue=venue(), score=4)
     await notes.set_note(user_id=300, venue=venue(), text="Удалить")
+    await tags.toggle_tag(user_id=300, venue=venue(), tag="return")
 
     edit_text = AsyncMock()
     answer_callback = AsyncMock()
@@ -139,6 +146,7 @@ async def test_confirmed_privacy_delete_clears_persistent_and_session_data(
     assert "Удалено избранных мест: <b>1</b>" in rendered
     assert "Удалено оценок: <b>1</b>" in rendered
     assert "Удалено заметок: <b>1</b>" in rendered
+    assert "Удалено меток: <b>1</b>" in rendered
 
 
 
@@ -150,12 +158,14 @@ async def test_privacy_export_handler_sends_json_document_for_current_user(
     favorites = FavoritesRepository(path)
     ratings = RatingsRepository(path)
     notes = NotesRepository(path)
+    tags = FavoriteTagsRepository(path)
     repository = UserDataRepository(path)
     await repository.initialize()
 
     await favorites.toggle(user_id=400, venue=venue())
     await ratings.set_rating(user_id=400, venue=venue(), score=5)
     await notes.set_note(user_id=400, venue=venue(), text="В экспорт")
+    await tags.toggle_tag(user_id=400, venue=venue(), tag="work")
 
     answer_document = AsyncMock()
     answer_callback = AsyncMock()
@@ -179,4 +189,5 @@ async def test_privacy_export_handler_sends_json_document_for_current_user(
     assert "Избранное: 1" in caption
     assert "Оценки: 1" in caption
     assert "Заметки: 1" in caption
+    assert "Метки: 1" in caption
     assert "400" not in caption
