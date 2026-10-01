@@ -18,6 +18,10 @@ search state, including a location sent for nearby search, a query used to searc
 already loaded favorites list and the selected local favorite sort mode, lives in the in-memory
 aiogram FSM for the running process.
 
+The favorites overview is also computed in memory from the already loaded favorite cards and the
+current user's local note/tag metadata. It creates no persistent analytics table and does not send
+those aggregates to places providers.
+
 This document describes PermPlaces application storage only. It does not control Telegram's own
 chat/message retention.
 
