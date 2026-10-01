@@ -556,3 +556,26 @@ def test_alias_repair_does_not_delete_or_block_on_unrelated_metadata_drift(
         ).fetchone()
 
     assert note == ("preserve for operator recovery",)
+
+
+
+def test_metadata_audit_tolerates_legacy_database_without_metadata_tables(
+    tmp_path: Path,
+) -> None:
+    database = tmp_path / "permplaces.db"
+    _create_auditable_database(database)
+
+    with sqlite3.connect(database) as connection:
+        connection.execute("DROP TABLE favorite_notes")
+        connection.execute("DROP TABLE favorite_tags")
+        connection.commit()
+
+    audit = audit_database(database)
+
+    assert audit.aliases_consistent is True
+    assert audit.metadata_consistent is True
+    assert audit.consistent is True
+    assert audit.orphan_notes is None
+    assert audit.invalid_notes is None
+    assert audit.orphan_tags is None
+    assert audit.invalid_tags is None
