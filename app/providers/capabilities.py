@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass
 
 from app.filters import PlaceFilters
@@ -222,7 +223,11 @@ def _capability_labels(capabilities: ProviderCapabilities) -> tuple[str, ...]:
     return tuple(labels)
 
 
-def render_provider_statuses(statuses: tuple[ProviderStatus, ...]) -> str:
+def render_provider_statuses(
+    statuses: tuple[ProviderStatus, ...],
+    *,
+    runtime_notes: Mapping[str, str] | None = None,
+) -> str:
     lines = ["<b>Источники PermPlaces</b>"]
     for status in statuses:
         prefix = "✅" if status.enabled else "○"
@@ -231,6 +236,8 @@ def render_provider_statuses(statuses: tuple[ProviderStatus, ...]) -> str:
         if status.enabled:
             labels = _capability_labels(status.capabilities)
             lines.append("  " + (", ".join(labels) if labels else "базовый поиск"))
+            if runtime_notes is not None and status.key in runtime_notes:
+                lines.append("  " + runtime_notes[status.key])
         elif status.disabled_reason:
             lines.append(f"  {status.disabled_reason}")
     lines.extend(
