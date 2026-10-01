@@ -199,8 +199,10 @@ docker compose ps
 docker compose logs --since=5m bot
 ```
 
-A restore drill is successful only when `db_admin inspect` reports the expected schema version/counters, the bot becomes healthy, and expected favorites and community ratings can be read after restart. Run a drill before the first production launch and after material storage
-changes.
+A restore drill is successful only when `db_admin inspect` reports the expected schema version/counters,
+`db_admin audit` reports `audit_ok`, the bot becomes healthy, and expected favorites and
+community ratings can be read after restart. Run a drill before the first production launch and
+after material storage changes.
 
 ## 7. Application rollback
 
@@ -242,7 +244,11 @@ If readiness stays unhealthy:
 4. confirm there is only one polling instance for the token;
 5. check provider failures separately from core bot startup; optional Geoapify/2GIS/Foursquare keys are not
    required for the base OSM flow;
-6. if SQLite initialization fails, run `python -m app.db_admin verify` and `python -m app.db_admin inspect` before considering a restore; a database newer than the application must not be downgraded in place.
+6. if SQLite initialization fails, run `python -m app.db_admin verify`, `python -m app.db_admin inspect`
+   and `python -m app.db_admin audit` before considering a restore; a database newer than the
+   application must not be downgraded in place;
+7. if only the derived favorite alias index is inconsistent, stop the bot and use
+   `python -m app.db_admin repair-aliases --confirm-stopped` instead of restoring the whole database.
 
 Do not delete `permplaces-data` during routine troubleshooting. In particular,
 `docker compose down -v` destroys the named volume and therefore the live favorites and community-ratings database.
