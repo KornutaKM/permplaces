@@ -5,6 +5,7 @@ from app.favorite_facets import build_favorite_facets
 from app.ui import (
     delete_data_confirmation_keyboard,
     favorite_category_facets_keyboard,
+    favorite_cuisine_facets_keyboard,
     favorite_district_facets_keyboard,
     favorite_facets_keyboard,
     favorite_filter_keyboard,
@@ -940,7 +941,7 @@ def test_favorites_results_keyboard_exposes_local_facets() -> None:
         for button in buttons
         if button.callback_data == "fx:menu"
     )
-    assert facet_button.text == "🧩 Категория / район"
+    assert facet_button.text == "🧩 Категория / район / кухня"
 
 
 def test_favorite_facets_keyboards_show_current_values_and_counts() -> None:
@@ -954,6 +955,7 @@ def test_favorite_facets_keyboards_show_current_values_and_counts() -> None:
         source="osm",
         source_id="node/facet-1",
         district="Ленинский",
+        cuisine=("coffee_shop",),
     )
     restaurant = Venue(
         id="osm:node/facet-2",
@@ -964,6 +966,7 @@ def test_favorite_facets_keyboards_show_current_values_and_counts() -> None:
         longitude=56.26,
         source="osm",
         source_id="node/facet-2",
+        cuisine=(),
     )
     facets = build_favorite_facets([cafe, restaurant])
 
@@ -972,6 +975,8 @@ def test_favorite_facets_keyboards_show_current_values_and_counts() -> None:
         active_category="cafe",
         active_district=None,
         district_missing=True,
+        active_cuisine="coffee_shop",
+        cuisine_missing=False,
     )
     menu_labels = [
         button.text
@@ -980,6 +985,7 @@ def test_favorite_facets_keyboards_show_current_values_and_counts() -> None:
     ]
     assert "🍽 Категория: Кофейня" in menu_labels
     assert "🏙 Район: не указан" in menu_labels
+    assert "🍜 Кухня: coffee_shop" in menu_labels
 
     categories = favorite_category_facets_keyboard(
         facets,
@@ -1010,6 +1016,27 @@ def test_favorite_facets_keyboards_show_current_values_and_counts() -> None:
         button.text == "✅ Район не указан (1)"
         and button.callback_data == "fx:d:missing"
         for button in district_buttons
+    )
+
+    cuisines = favorite_cuisine_facets_keyboard(
+        facets,
+        active_cuisine="coffee_shop",
+        cuisine_missing=False,
+    )
+    cuisine_buttons = [
+        button
+        for row in cuisines.inline_keyboard
+        for button in row
+    ]
+    assert any(
+        button.text == "✅ coffee_shop (1)"
+        and button.callback_data.startswith("fx:u:")
+        for button in cuisine_buttons
+    )
+    assert any(
+        button.text == "Кухня не указана (1)"
+        and button.callback_data == "fx:u:missing"
+        for button in cuisine_buttons
     )
 
 
