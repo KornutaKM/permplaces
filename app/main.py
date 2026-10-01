@@ -29,6 +29,7 @@ from app.providers.twogis import TwoGISProvider
 from app.ratings import RatingsRepository
 from app.search import SearchService
 from app.storage import FavoritesRepository
+from app.tags import FavoriteTagsRepository
 
 logger = logging.getLogger(__name__)
 
@@ -166,6 +167,7 @@ async def main() -> None:
     favorites_repository = FavoritesRepository(settings.database_path)
     ratings_repository = RatingsRepository(settings.database_path)
     notes_repository = NotesRepository(settings.database_path)
+    tags_repository = FavoriteTagsRepository(settings.database_path)
     user_data_repository = UserDataRepository(settings.database_path)
     search_service = SearchService(
         composite_provider,
@@ -207,6 +209,7 @@ async def main() -> None:
             favorites_repository=favorites_repository,
             ratings_repository=ratings_repository,
             notes_repository=notes_repository,
+            tags_repository=tags_repository,
             user_data_repository=user_data_repository,
             provider_statuses=provider_statuses,
             provider_budgets=provider_budgets,
