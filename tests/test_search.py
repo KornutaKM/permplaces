@@ -1,3 +1,5 @@
+from dataclasses import replace
+
 import pytest
 
 from app.data import Venue
@@ -312,8 +314,6 @@ class FakeRatingsRepository:
         self.enriched_ids: list[str] = []
 
     async def enrich_many(self, venues: list[Venue]) -> list[Venue]:
-        from dataclasses import replace
-
         self.enriched_ids.extend(venue.id for venue in venues)
         return [
             replace(
