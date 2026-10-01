@@ -40,10 +40,10 @@ class DatabaseAudit:
     missing_aliases: int
     unexpected_aliases: int
     orphan_aliases: int
-    orphan_notes: int
-    invalid_notes: int
-    orphan_tags: int
-    invalid_tags: int
+    orphan_notes: int | None
+    invalid_notes: int | None
+    orphan_tags: int | None
+    invalid_tags: int | None
 
     @property
     def aliases_consistent(self) -> bool:
@@ -55,11 +55,14 @@ class DatabaseAudit:
 
     @property
     def metadata_consistent(self) -> bool:
-        return (
-            self.orphan_notes == 0
-            and self.invalid_notes == 0
-            and self.orphan_tags == 0
-            and self.invalid_tags == 0
+        return all(
+            value in {0, None}
+            for value in (
+                self.orphan_notes,
+                self.invalid_notes,
+                self.orphan_tags,
+                self.invalid_tags,
+            )
         )
 
     @property
@@ -197,44 +200,50 @@ def _metadata_audit_counts(
     connection: sqlite3.Connection,
     *,
     expected_aliases: set[tuple[int, str, str]],
-) -> tuple[int, int, int, int]:
+) -> tuple[int | None, int | None, int | None, int | None]:
     expected_identities = _user_identity_pairs(expected_aliases)
 
-    note_rows = connection.execute(
-        """
-        SELECT user_id, identity_key, note
-        FROM favorite_notes
-        """
-    ).fetchall()
-    orphan_notes = 0
-    invalid_notes = 0
-    for user_id, identity_key, note in note_rows:
-        valid_identity = isinstance(user_id, int) and isinstance(identity_key, str)
-        if not valid_identity or (user_id, identity_key) not in expected_identities:
-            orphan_notes += 1
+    orphan_notes: int | None = None
+    invalid_notes: int | None = None
+    if _table_count(connection, "favorite_notes") is not None:
+        note_rows = connection.execute(
+            """
+            SELECT user_id, identity_key, note
+            FROM favorite_notes
+            """
+        ).fetchall()
+        orphan_notes = 0
+        invalid_notes = 0
+        for user_id, identity_key, note in note_rows:
+            valid_identity = isinstance(user_id, int) and isinstance(identity_key, str)
+            if not valid_identity or (user_id, identity_key) not in expected_identities:
+                orphan_notes += 1
 
-        if (
-            not isinstance(note, str)
-            or not note.strip()
-            or len(note) > MAX_PERSONAL_NOTE_LENGTH
-        ):
-            invalid_notes += 1
+            if (
+                not isinstance(note, str)
+                or not note.strip()
+                or len(note) > MAX_PERSONAL_NOTE_LENGTH
+            ):
+                invalid_notes += 1
 
-    allowed_tags = set(FAVORITE_TAG_KEYS)
-    tag_rows = connection.execute(
-        """
-        SELECT user_id, identity_key, tag
-        FROM favorite_tags
-        """
-    ).fetchall()
-    orphan_tags = 0
-    invalid_tags = 0
-    for user_id, identity_key, tag in tag_rows:
-        valid_identity = isinstance(user_id, int) and isinstance(identity_key, str)
-        if not valid_identity or (user_id, identity_key) not in expected_identities:
-            orphan_tags += 1
-        if not isinstance(tag, str) or tag not in allowed_tags:
-            invalid_tags += 1
+    orphan_tags: int | None = None
+    invalid_tags: int | None = None
+    if _table_count(connection, "favorite_tags") is not None:
+        allowed_tags = set(FAVORITE_TAG_KEYS)
+        tag_rows = connection.execute(
+            """
+            SELECT user_id, identity_key, tag
+            FROM favorite_tags
+            """
+        ).fetchall()
+        orphan_tags = 0
+        invalid_tags = 0
+        for user_id, identity_key, tag in tag_rows:
+            valid_identity = isinstance(user_id, int) and isinstance(identity_key, str)
+            if not valid_identity or (user_id, identity_key) not in expected_identities:
+                orphan_tags += 1
+            if not isinstance(tag, str) or tag not in allowed_tags:
+                invalid_tags += 1
 
     return orphan_notes, invalid_notes, orphan_tags, invalid_tags
 
