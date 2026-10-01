@@ -7,7 +7,8 @@ PermPlaces stores only a small amount of application data tied to a Telegram use
 The SQLite database stores, per Telegram user:
 
 - favorite venue payloads, with provider aliases used only to recognize the same saved place;
-- numeric 1–5 PermPlaces community ratings using the same provider-alias identity contract.
+- numeric 1–5 PermPlaces community ratings using the same provider-alias identity contract;
+- private personal notes attached to saved favorite identities.
 
 Provider request-budget counters are application/operator state and are not user-specific.
 
@@ -29,7 +30,8 @@ The Telegram command:
 returns only aggregate counts for the current Telegram user:
 
 - number of favorites;
-- number of community-rating rows.
+- number of community-rating rows;
+- number of personal-note rows.
 
 It does not print the Telegram user ID, favorite payloads, coordinates, provider keys or other
 users' counts.
@@ -37,8 +39,8 @@ users' counts.
 ## Exporting your stored data
 
 When persistent data exists, `/mydata` also shows `📦 Скачать JSON`. The export is scoped to the
-current Telegram user and contains their saved favorite snapshots plus their community-rating
-rows.
+current Telegram user and contains their saved favorite snapshots, community-rating rows and
+personal-note rows.
 
 The export does not embed the Telegram user ID, API keys, provider budget counters, current
 search/FSM state, search history or location history. Valid favorite snapshots can include venue
@@ -59,11 +61,12 @@ confirmation.
 
 On confirmation PermPlaces:
 
-1. deletes all favorites for the current Telegram user;
-2. deletes all community-rating rows for the current Telegram user, including historical provider
+1. deletes all personal-note rows for the current Telegram user;
+2. deletes all favorites for the current Telegram user;
+3. deletes all community-rating rows for the current Telegram user, including historical provider
    aliases;
-3. commits both deletions in one SQLite transaction;
-4. clears the current in-memory search/FSM state.
+4. commits those deletions in one SQLite transaction;
+5. clears the current in-memory search/FSM state.
 
 Provider budget counters are not deleted because they are shared operational state, not personal
 user data.
