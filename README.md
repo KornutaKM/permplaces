@@ -4,7 +4,7 @@ Telegram-ассистент для поиска кафе, ресторанов, 
 
 ## Статус
 
-Версия 0.31 добавляет единый provider-alias identity contract для ratings и favorites: избранное теперь корректно переключается между Geoapify/OSM merged-карточками и скрывает historical alias-дубликаты.
+Версия 0.32 переводит alias-aware favorites на SQLite schema v2 с persistent identity index: toggle больше не сканирует и не декодирует всё избранное пользователя, а migration backfill сохраняет совместимость со старыми данными.
 
 Рабочие вертикальные сценарии:
 
@@ -54,6 +54,7 @@ Telegram-ассистент для поиска кафе, ресторанов, 
 - runtime-логи provider latency, cache hit/miss/coalescing/eviction и failover без координат пользователя;
 - ❤️ постоянное избранное в SQLite, изолированное по Telegram user ID;
 - favorites используют provider aliases: одна физическая карточка не дублируется только из-за смены primary source после OSM/Geoapify merge;
+- provider aliases избранного индексируются в SQLite schema v2; legacy favorites автоматически backfill-ятся при startup migration;
 - ⭐ собственные оценки пользователей PermPlaces 1–5 без платного rating API;
 - community rating агрегируется по provider aliases без двойного учёта одного пользователя;
 - пользователь видит свою текущую оценку, может изменить или удалить её;
@@ -80,7 +81,7 @@ Telegram-ассистент для поиска кафе, ресторанов, 
 - `/health/live` и `/health/ready` внутри контейнера;
 - Docker HEALTHCHECK, который показывает `healthy` только после runtime + SQLite initialization;
 - hardened container runtime: UID 10001, read-only root FS, `cap_drop: ALL`, `no-new-privileges`, resource limits.
-- versioned SQLite schema через `PRAGMA user_version` и централизованный startup migration;
+- versioned SQLite schema v2 через `PRAGMA user_version` и централизованный startup migration;
 - SQLite admin CLI: `python -m app.db_admin backup|verify|inspect|restore` с fail-closed restore guard;
 - production runbook для secrets, exact-SHA deploy, backup/restore drill и application rollback: `docs/PRODUCTION.md`.
 
