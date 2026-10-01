@@ -4,7 +4,7 @@ Telegram-ассистент для поиска кафе, ресторанов, 
 
 ## Статус
 
-Версия 0.28 добавляет persistent safety-budget для бесплатного Geoapify и community ratings v2: просмотр, изменение и удаление своей оценки плюс batched aggregation без N+1 запросов.
+Версия 0.29 добавляет versioned SQLite schema v1, централизованные idempotent migrations, fail-closed проверку совместимости и безопасную `db_admin inspect` диагностику.
 
 Рабочие вертикальные сценарии:
 
@@ -77,7 +77,8 @@ Telegram-ассистент для поиска кафе, ресторанов, 
 - `/health/live` и `/health/ready` внутри контейнера;
 - Docker HEALTHCHECK, который показывает `healthy` только после runtime + SQLite initialization;
 - hardened container runtime: UID 10001, read-only root FS, `cap_drop: ALL`, `no-new-privileges`, resource limits.
-- SQLite admin CLI: `python -m app.db_admin backup|verify|restore` с fail-closed restore guard;
+- versioned SQLite schema через `PRAGMA user_version` и централизованный startup migration;
+- SQLite admin CLI: `python -m app.db_admin backup|verify|inspect|restore` с fail-closed restore guard;
 - production runbook для secrets, exact-SHA deploy, backup/restore drill и application rollback: `docs/PRODUCTION.md`.
 
 ## Принцип данных
@@ -106,7 +107,7 @@ PermPlaces не придумывает отсутствующие факты.
 
 ## Production operations
 
-Production deploy, backup, restore and rollback procedures are documented in `docs/PRODUCTION.md`. Live SQLite backups must use `python -m app.db_admin backup`; copying only the WAL-mode database file while the bot is running is not a supported backup method.
+Production deploy, backup, restore and rollback procedures are documented in `docs/PRODUCTION.md`. Schema/migration contract: `docs/DATABASE.md`. Live SQLite backups must use `python -m app.db_admin backup`; copying only the WAL-mode database file while the bot is running is not a supported backup method.
 
 ## Быстрый запуск через Docker Compose
 
