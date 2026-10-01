@@ -58,13 +58,11 @@ class ProviderCapabilities:
             return False
         if active.family_friendly and not self.family_friendly:
             return False
-        if (
+        return not (
             active.open_now
             and active.open_late
             and not self.combined_open_now_late
-        ):
-            return False
-        return True
+        )
 
     def supports_nearby(
         self,
@@ -238,8 +236,10 @@ def render_provider_statuses(statuses: tuple[ProviderStatus, ...]) -> str:
     lines.extend(
         [
             "",
-            "<i>Диагностика показывает только возможности адаптеров; "
-            "ключи и другие секреты не выводятся.</i>",
+            (
+                "<i>Диагностика показывает только возможности адаптеров; "
+                "ключи и другие секреты не выводятся.</i>"
+            ),
         ]
     )
     return "\n".join(lines)
