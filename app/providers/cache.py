@@ -10,6 +10,7 @@ from time import monotonic
 from app.data import Venue
 from app.filters import PlaceFilters
 from app.providers.base import PlacesProvider
+from app.providers.capabilities import ProviderCapabilities, provider_capabilities
 
 type CacheKey = tuple[object, ...]
 
@@ -63,6 +64,10 @@ class CachedPlacesProvider:
         self._misses = 0
         self._coalesced = 0
         self._evictions = 0
+
+    @property
+    def capabilities(self) -> ProviderCapabilities:
+        return provider_capabilities(self._provider)
 
     def stats(self) -> CacheStats:
         return CacheStats(
