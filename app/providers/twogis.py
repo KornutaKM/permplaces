@@ -11,6 +11,7 @@ from app.data import Venue
 from app.filters import PlaceFilters
 from app.observability import endpoint_label
 from app.providers.base import ProviderError
+from app.providers.capabilities import TWOGIS_CAPABILITIES
 
 logger = logging.getLogger(__name__)
 
@@ -58,6 +59,8 @@ def _work_time(filters: PlaceFilters | None) -> str | None:
 
 
 class TwoGISProvider:
+    capabilities = TWOGIS_CAPABILITIES
+
     def __init__(
         self,
         *,
@@ -75,7 +78,7 @@ class TwoGISProvider:
         self._owns_client = client is None
         self._client = client or httpx.AsyncClient(
             timeout=httpx.Timeout(timeout_seconds),
-            headers={"User-Agent": "PermPlaces/0.16 (+https://github.com/KornutaKM/permplaces)"},
+            headers={"User-Agent": "PermPlaces/0.26 (+https://github.com/KornutaKM/permplaces)"},
         )
 
     async def close(self) -> None:

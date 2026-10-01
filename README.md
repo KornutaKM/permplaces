@@ -4,7 +4,7 @@ Telegram-ассистент для поиска кафе, ресторанов, 
 
 ## Статус
 
-Версия 0.25 добавляет бесплатный optional Geoapify Places provider для nearby-поиска, credit-bounded запросы, fail-closed фильтры и обязательную Geoapify/OSM attribution.
+Версия 0.26 добавляет capability-aware provider routing, безопасную `/providers` диагностику и conservative dedup v2 для OSM + Geoapify с усиленным provenance.
 
 Рабочие вертикальные сценарии:
 
@@ -55,7 +55,10 @@ Telegram-ассистент для поиска кафе, ресторанов, 
 - ❤️ постоянное избранное в SQLite, изолированное по Telegram user ID;
 - Ruff + pytest;
 - Docker Compose build/config/smoke CI;
-- multi-provider aggregation foundation с conservative dedup;
+- multi-provider aggregation с capability-aware routing: неподходящий provider не вызывается;
+- conservative dedup v2 с branch-safe phone/site/name/address matching;
+- corroborating field provenance: одинаковый сохранённый факт может иметь несколько источников;
+- безопасная команда `/providers` показывает активные источники и их возможности без секретов;
 - source-level и field-level provenance для объединённых карточек;
 - рекомендуемый бесплатный Geoapify Places provider для nearby-поиска при заданном `GEOAPIFY_API_KEY`;
 - Geoapify-запрос ограничен 20 результатами, чтобы один provider-call укладывался в один Places credit по текущей публичной модели Geoapify;
@@ -219,11 +222,11 @@ OverpassProvider + optional GeoapifyProvider + optional paid catalog providers
 OpenStreetMap + Geoapify Places + optional 2GIS/Foursquare
 ```
 
-Provider abstraction теперь включает deterministic aggregation и provenance, поэтому второй источник можно подключать без смешивания фактов или переписывания Telegram UX.
+Provider abstraction теперь включает deterministic aggregation, capability routing и provenance. Подробный контракт источников и dedup: `docs/PROVIDERS.md`.
 
 ## Следующие этапы
 
-1. Получить бесплатный Geoapify API key и выполнить live-проверку покрытия кафе/ресторанов по Перми без включения платных провайдеров.
+1. Получить бесплатный Geoapify API key и выполнить live-проверку покрытия кафе/ресторанов по Перми через `/providers` и реальный nearby-поиск без включения платных провайдеров.
 2. Добавить Place Details enrichment только после измерения credit-бюджета и только для полей с явным provenance.
 3. Добавить average-check enrichment только после region-specific attribute discovery и provenance.
 4. Расширять Scenario Engine только новыми provider-backed сигналами; сценарий «На свидание» остаётся выключенным без подтверждаемой модели атмосферы.

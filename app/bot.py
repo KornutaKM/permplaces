@@ -2,7 +2,7 @@ from dataclasses import asdict
 
 from aiogram import F, Router
 from aiogram.exceptions import TelegramBadRequest
-from aiogram.filters import CommandStart
+from aiogram.filters import Command, CommandStart
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.types import CallbackQuery, Message, ReplyKeyboardRemove
@@ -10,6 +10,7 @@ from aiogram.types import CallbackQuery, Message, ReplyKeyboardRemove
 from app.data import FieldSource, PhotoRef, SourceRef, Venue
 from app.districts import DISTRICT_BY_KEY, PERM_DISTRICTS, PERM_RELATION_ID
 from app.filters import PlaceFilters
+from app.providers.capabilities import ProviderStatus, render_provider_statuses
 from app.providers.overpass import ProviderError
 from app.query import parse_search_query, plan_search_query
 from app.scenarios import (
@@ -241,6 +242,17 @@ async def start(message: Message, state: FSMContext) -> None:
     await message.answer(WELCOME, reply_markup=home_keyboard())
 
 
+@router.message(Command("providers"))
+async def provider_diagnostics(
+    message: Message,
+    provider_statuses: tuple[ProviderStatus, ...],
+) -> None:
+    await message.answer(
+        render_provider_statuses(provider_statuses),
+        disable_web_page_preview=True,
+    )
+
+
 @router.message(F.location)
 async def location_received(message: Message, state: FSMContext) -> None:
     if message.location is None:
@@ -324,7 +336,7 @@ async def text_search(
         )
     except ProviderError:
         await message.answer(
-            "Сервис OpenStreetMap сейчас не ответил. Попробуйте ещё раз чуть позже."
+            "Источники мест сейчас не ответили. Попробуйте ещё раз чуть позже."
         )
         return
 
@@ -425,8 +437,9 @@ async def nav_filters(callback: CallbackQuery, state: FSMContext) -> None:
     await callback.message.edit_text(
         "<b>Настройте фильтры</b>\n\n"
         f"{scope_note}\n"
-        "🌿 Веранда, 📶 Wi-Fi и 👨‍👩‍👧 «Для детей» — только по явным тегам OSM.\n"
-        "🟢 «Открыто сейчас» и 🌙 «Открыто в 23:00» вычисляются по OSM opening_hours.",
+        "🌿/📶/👨‍👩‍👧 фильтры применяются только к источникам, которые умеют "
+        "подтверждать соответствующий признак.\n"
+        "🟢/🌙 время работы также проверяется только по подтверждаемым данным.",
         reply_markup=filters_keyboard(
             radius_m=(
                 data.get("radius_m")
@@ -504,7 +517,7 @@ async def category_selected(
         )
     except ProviderError:
         await callback.message.edit_text(
-            "OpenStreetMap сейчас не ответил. Вернитесь к категориям и попробуйте ещё раз.",
+            "Источники мест сейчас не ответили. Вернитесь к категориям и попробуйте ещё раз.",
             reply_markup=categories_keyboard(),
         )
         return
@@ -518,7 +531,7 @@ async def category_selected(
     if not venues:
         await callback.message.edit_text(
             f"<b>{label}</b>\n\n"
-            "В выбранной области OpenStreetMap не вернул подходящих мест.",
+            "В выбранной области источники не вернули подходящих мест.",
             reply_markup=categories_keyboard(),
         )
         return
@@ -739,7 +752,7 @@ async def scenario(
         )
     except ProviderError:
         await callback.message.edit_text(
-            "OpenStreetMap сейчас не ответил.",
+            "Источники мест сейчас не ответили.",
             reply_markup=categories_keyboard(),
         )
         return

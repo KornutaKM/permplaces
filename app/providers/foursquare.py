@@ -14,6 +14,7 @@ from app.data import PhotoRef, Venue
 from app.filters import PlaceFilters
 from app.observability import endpoint_label
 from app.providers.base import ProviderError
+from app.providers.capabilities import FOURSQUARE_CAPABILITIES
 
 logger = logging.getLogger(__name__)
 
@@ -162,6 +163,8 @@ def _photo_refs(value: object) -> tuple[PhotoRef, ...]:
 
 
 class FoursquareProvider:
+    capabilities = FOURSQUARE_CAPABILITIES
+
     def __init__(
         self,
         *,
@@ -178,7 +181,7 @@ class FoursquareProvider:
         self._headers = {
             "Accept": "application/json",
             "Authorization": f"Bearer {api_key.strip()}",
-            "User-Agent": "PermPlaces/0.24 (+https://github.com/KornutaKM/permplaces)",
+            "User-Agent": "PermPlaces/0.26 (+https://github.com/KornutaKM/permplaces)",
             "X-Places-Api-Version": _API_VERSION,
         }
         self._owns_client = client is None

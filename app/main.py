@@ -9,6 +9,13 @@ from app.bot import router
 from app.config import load_settings
 from app.health import HealthServer
 from app.providers.cache import CachedPlacesProvider
+from app.providers.capabilities import (
+    FOURSQUARE_CAPABILITIES,
+    GEOAPIFY_CAPABILITIES,
+    OVERPASS_CAPABILITIES,
+    TWOGIS_CAPABILITIES,
+    ProviderStatus,
+)
 from app.providers.composite import CompositePlacesProvider
 from app.providers.failover import FailoverPlacesProvider
 from app.providers.foursquare import FoursquareProvider
@@ -100,6 +107,46 @@ async def main() -> None:
         caches.append(("foursquare", foursquare_cache))
         closable_providers.append(foursquare_provider)
 
+    provider_statuses = (
+        ProviderStatus(
+            key="osm",
+            label="OpenStreetMap / Overpass",
+            enabled=True,
+            capabilities=OVERPASS_CAPABILITIES,
+        ),
+        ProviderStatus(
+            key="geoapify",
+            label="Geoapify Places",
+            enabled=geoapify_provider is not None,
+            capabilities=GEOAPIFY_CAPABILITIES,
+            disabled_reason=(
+                None
+                if geoapify_provider is not None
+                else "GEOAPIFY_API_KEY не настроен"
+            ),
+        ),
+        ProviderStatus(
+            key="2gis",
+            label="2GIS Places",
+            enabled=twogis_provider is not None,
+            capabilities=TWOGIS_CAPABILITIES,
+            disabled_reason=(
+                None if twogis_provider is not None else "TWOGIS_API_KEY не настроен"
+            ),
+        ),
+        ProviderStatus(
+            key="foursquare",
+            label="Foursquare Places",
+            enabled=foursquare_provider is not None,
+            capabilities=FOURSQUARE_CAPABILITIES,
+            disabled_reason=(
+                None
+                if foursquare_provider is not None
+                else "FOURSQUARE_API_KEY не настроен"
+            ),
+        ),
+    )
+
     composite_provider = CompositePlacesProvider(aggregate_providers)
     search_service = SearchService(composite_provider)
     favorites_repository = FavoritesRepository(settings.database_path)
@@ -131,6 +178,7 @@ async def main() -> None:
             bot,
             search_service=search_service,
             favorites_repository=favorites_repository,
+            provider_statuses=provider_statuses,
         )
     finally:
         health_server.state.mark_not_ready()
