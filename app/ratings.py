@@ -57,6 +57,13 @@ def _summary_from_scores(scores: dict[int, int]) -> CommunityRatingSummary:
     )
 
 
+_SQLITE_IN_CHUNK = 900
+
+
+def _chunks(values: tuple[str, ...], size: int = _SQLITE_IN_CHUNK) -> tuple[tuple[str, ...], ...]:
+    return tuple(values[index : index + size] for index in range(0, len(values), size))
+
+
 class RatingsRepository:
     def __init__(self, database_path: str) -> None:
         self._database_path = database_path
@@ -182,19 +189,27 @@ class RatingsRepository:
                 key_to_indexes.setdefault(key, []).append(index)
 
         all_keys = tuple(key_to_indexes)
-        placeholders = ",".join("?" for _ in all_keys)
+        rows: list[tuple[object, object, object, object]] = []
         async with aiosqlite.connect(self._database_path) as database:
-            cursor = await database.execute(
-                f"""
-                SELECT venue_key, user_id, score, updated_at_ns
-                FROM venue_ratings
-                WHERE venue_key IN ({placeholders})
-                ORDER BY updated_at_ns DESC, venue_key ASC
-                """,
-                all_keys,
+            for key_chunk in _chunks(all_keys):
+                placeholders = ",".join("?" for _ in key_chunk)
+                cursor = await database.execute(
+                    f"""
+                    SELECT venue_key, user_id, score, updated_at_ns
+                    FROM venue_ratings
+                    WHERE venue_key IN ({placeholders})
+                    """,
+                    key_chunk,
+                )
+                rows.extend(await cursor.fetchall())
+                await cursor.close()
+
+        rows.sort(
+            key=lambda row: (
+                -(row[3] if isinstance(row[3], int) else 0),
+                row[0] if isinstance(row[0], str) else "",
             )
-            rows = await cursor.fetchall()
-            await cursor.close()
+        )
 
         latest_by_venue: list[dict[int, int]] = [{} for _ in venues]
         for venue_key, user_id, score, _updated_at_ns in rows:
