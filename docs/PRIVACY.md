@@ -6,8 +6,8 @@ PermPlaces stores only a small amount of application data tied to a Telegram use
 
 The SQLite database stores, per Telegram user:
 
-- favorite venue payloads;
-- numeric 1–5 PermPlaces community ratings.
+- favorite venue payloads, with provider aliases used only to recognize the same saved place;
+- numeric 1–5 PermPlaces community ratings using the same provider-alias identity contract.
 
 Provider request-budget counters are application/operator state and are not user-specific.
 
