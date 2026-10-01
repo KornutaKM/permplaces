@@ -39,7 +39,7 @@ async def _require_columns(
         )
 
 
-def _favorite_identity_keys(venue_id: str, payload: str) -> tuple[str, ...]:
+def favorite_identity_keys_from_payload(venue_id: str, payload: str) -> tuple[str, ...]:
     keys: list[str] = []
     if venue_id:
         keys.append(venue_id)
@@ -91,7 +91,7 @@ async def _backfill_favorite_aliases(database: aiosqlite.Connection) -> None:
             continue
         if not isinstance(venue_id, str) or not isinstance(payload, str):
             continue
-        for identity_key in _favorite_identity_keys(venue_id, payload):
+        for identity_key in favorite_identity_keys_from_payload(venue_id, payload):
             await database.execute(
                 """
                 INSERT OR IGNORE INTO favorite_identity_aliases (

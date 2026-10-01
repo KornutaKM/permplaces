@@ -10,6 +10,8 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
 
+from app.database import favorite_identity_keys_from_payload
+
 
 class DatabaseAdminError(RuntimeError):
     pass
@@ -23,6 +25,25 @@ class DatabaseInspection:
     favorite_aliases: int | None
     ratings: int | None
     provider_budget_rows: int | None
+
+
+@dataclass(frozen=True, slots=True)
+class DatabaseAudit:
+    path: Path
+    favorites: int
+    expected_aliases: int
+    actual_aliases: int
+    missing_aliases: int
+    unexpected_aliases: int
+    orphan_aliases: int
+
+    @property
+    def consistent(self) -> bool:
+        return (
+            self.missing_aliases == 0
+            and self.unexpected_aliases == 0
+            and self.orphan_aliases == 0
+        )
 
 
 def _read_only_connection(path: Path) -> sqlite3.Connection:
@@ -97,6 +118,153 @@ def inspect_database(path: str | Path) -> DatabaseInspection:
         raise DatabaseAdminError(
             f"SQLite inspection failed for {database_path}: {exc}"
         ) from exc
+
+
+def _favorite_alias_sets(
+    connection: sqlite3.Connection,
+) -> tuple[
+    set[tuple[int, str, str]],
+    set[tuple[int, str, str]],
+    set[tuple[int, str]],
+]:
+    favorite_rows = connection.execute(
+        """
+        SELECT user_id, venue_id, payload
+        FROM favorites
+        """
+    ).fetchall()
+    expected: set[tuple[int, str, str]] = set()
+    favorite_ids: set[tuple[int, str]] = set()
+
+    for user_id, venue_id, payload in favorite_rows:
+        if not isinstance(user_id, int):
+            continue
+        if not isinstance(venue_id, str) or not isinstance(payload, str):
+            continue
+        favorite_ids.add((user_id, venue_id))
+        for identity_key in favorite_identity_keys_from_payload(venue_id, payload):
+            expected.add((user_id, venue_id, identity_key))
+
+    alias_rows = connection.execute(
+        """
+        SELECT user_id, venue_id, identity_key
+        FROM favorite_identity_aliases
+        """
+    ).fetchall()
+    actual = {
+        (user_id, venue_id, identity_key)
+        for user_id, venue_id, identity_key in alias_rows
+        if isinstance(user_id, int)
+        and isinstance(venue_id, str)
+        and isinstance(identity_key, str)
+    }
+    return expected, actual, favorite_ids
+
+
+def audit_database(path: str | Path) -> DatabaseAudit:
+    database_path = verify_database(path)
+    try:
+        with closing(_read_only_connection(database_path)) as connection:
+            expected, actual, favorite_ids = _favorite_alias_sets(connection)
+            missing = expected - actual
+            unexpected = actual - expected
+            orphan = {
+                row
+                for row in actual
+                if (row[0], row[1]) not in favorite_ids
+            }
+            favorite_count = _table_count(connection, "favorites")
+            if favorite_count is None:
+                raise DatabaseAdminError(
+                    "Database audit requires the favorites table."
+                )
+            return DatabaseAudit(
+                path=database_path,
+                favorites=favorite_count,
+                expected_aliases=len(expected),
+                actual_aliases=len(actual),
+                missing_aliases=len(missing),
+                unexpected_aliases=len(unexpected),
+                orphan_aliases=len(orphan),
+            )
+    except sqlite3.Error as exc:
+        raise DatabaseAdminError(
+            f"SQLite audit failed for {database_path}: {exc}"
+        ) from exc
+
+
+def _repair_snapshot_path(database_path: Path) -> Path:
+    timestamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
+    suffix = database_path.suffix or ".db"
+    return database_path.with_name(
+        f"{database_path.stem}.pre-alias-repair-{timestamp}{suffix}"
+    )
+
+
+def repair_favorite_aliases(
+    database: str | Path,
+    *,
+    confirm_stopped: bool,
+) -> Path:
+    if not confirm_stopped:
+        raise DatabaseAdminError(
+            "Alias repair refused: stop the bot first and pass --confirm-stopped."
+        )
+
+    database_path = verify_database(database)
+    safety_backup = _repair_snapshot_path(database_path)
+    backup_database(database_path, safety_backup)
+
+    try:
+        with closing(sqlite3.connect(database_path)) as connection:
+            connection.execute("PRAGMA busy_timeout=5000")
+            connection.execute("BEGIN IMMEDIATE")
+            try:
+                connection.execute("DELETE FROM favorite_identity_aliases")
+                rows = connection.execute(
+                    """
+                    SELECT user_id, venue_id, payload
+                    FROM favorites
+                    ORDER BY user_id, created_at, venue_id
+                    """
+                ).fetchall()
+
+                for user_id, venue_id, payload in rows:
+                    if not isinstance(user_id, int):
+                        continue
+                    if not isinstance(venue_id, str) or not isinstance(payload, str):
+                        continue
+                    for identity_key in favorite_identity_keys_from_payload(
+                        venue_id,
+                        payload,
+                    ):
+                        connection.execute(
+                            """
+                            INSERT OR IGNORE INTO favorite_identity_aliases (
+                                user_id,
+                                venue_id,
+                                identity_key
+                            )
+                            VALUES (?, ?, ?)
+                            """,
+                            (user_id, venue_id, identity_key),
+                        )
+                connection.commit()
+            except BaseException:
+                connection.rollback()
+                raise
+    except sqlite3.Error as exc:
+        raise DatabaseAdminError(
+            f"SQLite alias repair failed for {database_path}: {exc}"
+        ) from exc
+
+    verify_database(database_path)
+    audit = audit_database(database_path)
+    if not audit.consistent:
+        raise DatabaseAdminError(
+            "Alias repair finished but consistency audit still reports drift."
+        )
+    return safety_backup
 
 
 def backup_database(
@@ -219,6 +387,23 @@ def _parser() -> argparse.ArgumentParser:
     )
     inspect_parser.add_argument("--database", default=_database_default())
 
+    audit = subparsers.add_parser(
+        "audit",
+        help="Check favorite identity alias consistency without changing data.",
+    )
+    audit.add_argument("--database", default=_database_default())
+
+    repair = subparsers.add_parser(
+        "repair-aliases",
+        help="Rebuild the derived favorite identity alias index offline.",
+    )
+    repair.add_argument("--database", default=_database_default())
+    repair.add_argument(
+        "--confirm-stopped",
+        action="store_true",
+        help="Required acknowledgement that no bot process is using the database.",
+    )
+
     restore = subparsers.add_parser(
         "restore",
         help="Restore a verified backup after the bot has been stopped.",
@@ -262,6 +447,32 @@ def main() -> int:
                 f"favorite_aliases={inspection.favorite_aliases} "
                 f"ratings={inspection.ratings} "
                 f"provider_budget_rows={inspection.provider_budget_rows}"
+            )
+            return 0
+
+        if args.command == "audit":
+            audit = audit_database(args.database)
+            status = "audit_ok" if audit.consistent else "audit_drift"
+            print(
+                f"{status} "
+                f"path={audit.path} "
+                f"favorites={audit.favorites} "
+                f"expected_aliases={audit.expected_aliases} "
+                f"actual_aliases={audit.actual_aliases} "
+                f"missing_aliases={audit.missing_aliases} "
+                f"unexpected_aliases={audit.unexpected_aliases} "
+                f"orphan_aliases={audit.orphan_aliases}"
+            )
+            return 0 if audit.consistent else 3
+
+        if args.command == "repair-aliases":
+            safety_backup = repair_favorite_aliases(
+                args.database,
+                confirm_stopped=args.confirm_stopped,
+            )
+            print(
+                f"repair_aliases_ok path={args.database} "
+                f"pre_repair_backup={safety_backup}"
             )
             return 0
 

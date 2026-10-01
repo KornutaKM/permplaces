@@ -4,7 +4,7 @@ Telegram-ассистент для поиска кафе, ресторанов, 
 
 ## Статус
 
-Версия 0.33 добавляет self-service JSON export через `/mydata`: пользователь может скачать свои favorites и community ratings без Telegram user ID, API-ключей, search history или location history.
+Версия 0.34 добавляет безопасный SQLite consistency audit и offline repair для derived favorite alias index: оператор может обнаружить missing/unexpected/orphan aliases без чтения пользовательских payloads в вывод и восстановить индекс из favorites с автоматическим safety-backup.
 
 Рабочие вертикальные сценарии:
 
@@ -83,7 +83,8 @@ Telegram-ассистент для поиска кафе, ресторанов, 
 - Docker HEALTHCHECK, который показывает `healthy` только после runtime + SQLite initialization;
 - hardened container runtime: UID 10001, read-only root FS, `cap_drop: ALL`, `no-new-privileges`, resource limits.
 - versioned SQLite schema v2 через `PRAGMA user_version` и централизованный startup migration;
-- SQLite admin CLI: `python -m app.db_admin backup|verify|inspect|restore` с fail-closed restore guard;
+- SQLite admin CLI: `python -m app.db_admin backup|verify|inspect|audit|repair-aliases|restore` с fail-closed guards;
+- `db_admin audit` проверяет derived favorite alias index без изменения данных; repair требует остановленного бота и создаёт pre-repair backup;
 - production runbook для secrets, exact-SHA deploy, backup/restore drill и application rollback: `docs/PRODUCTION.md`.
 
 ## Принцип данных
