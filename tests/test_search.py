@@ -304,3 +304,41 @@ async def test_search_accepts_provider_verified_open_now_without_osm_hours() -> 
     )
 
     assert [venue.id for venue in venues] == ["2gis:1"]
+
+
+
+class FakeRatingsRepository:
+    def __init__(self) -> None:
+        self.enriched_ids: list[str] = []
+
+    async def enrich_many(self, venues: list[Venue]) -> list[Venue]:
+        from dataclasses import replace
+
+        self.enriched_ids.extend(venue.id for venue in venues)
+        return [
+            replace(
+                venue,
+                community_rating=4.5,
+                community_rating_count=2,
+            )
+            for venue in venues
+        ]
+
+
+@pytest.mark.asyncio
+async def test_search_enriches_only_selected_results_with_community_ratings() -> None:
+    ratings = FakeRatingsRepository()
+    service = SearchService(FakeProvider(), ratings_repository=ratings)  # type: ignore[arg-type]
+
+    venues = await service.nearby(
+        category="cafe",
+        latitude=58.01046,
+        longitude=56.25017,
+        radius_m=5000,
+        limit=1,
+    )
+
+    assert [venue.id for venue in venues] == ["near"]
+    assert ratings.enriched_ids == ["near"]
+    assert venues[0].community_rating == 4.5
+    assert venues[0].community_rating_count == 2
