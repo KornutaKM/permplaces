@@ -123,7 +123,7 @@ class GeoapifyProvider:
         self._client = client or httpx.AsyncClient(
             timeout=httpx.Timeout(timeout_seconds),
             headers={
-                "User-Agent": "PermPlaces/0.25 (+https://github.com/KornutaKM/permplaces)"
+                "User-Agent": "PermPlaces/0.26 (+https://github.com/KornutaKM/permplaces)"
             },
         )
 
