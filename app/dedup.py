@@ -162,19 +162,17 @@ def same_venue(a: Venue, b: Venue) -> bool:
 
     phone_a = _normalize_phone(a.phone)
     phone_b = _normalize_phone(b.phone)
-    if phone_a and phone_a == phone_b:
-        # Shared call-center numbers exist. A matching phone is strong only
-        # inside a branch-sized radius, or when the address also agrees.
-        if same_address or distance <= 120:
-            return True
+    # Shared call-center numbers exist. A matching phone is strong only
+    # inside a branch-sized radius, or when the address also agrees.
+    if phone_a and phone_a == phone_b and (same_address or distance <= 120):
+        return True
 
     host_a = _normalize_host(a.website)
     host_b = _normalize_host(b.website)
-    if host_a and host_a == host_b:
-        # Chain branches commonly share one website. Do not merge them on host
-        # identity alone unless coordinates/address independently support it.
-        if same_address or distance <= 40:
-            return True
+    # Chain branches commonly share one website. Do not merge them on host
+    # identity alone unless coordinates/address independently support it.
+    if host_a and host_a == host_b and (same_address or distance <= 40):
+        return True
 
     name_a = _normalize_text(a.name)
     name_b = _normalize_text(b.name)
