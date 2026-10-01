@@ -30,6 +30,7 @@ from app.ratings import RatingsRepository
 from app.search import SearchService
 from app.storage import FavoritesRepository
 from app.tags import FavoriteTagsRepository
+from app.version import APP_VERSION
 
 logger = logging.getLogger(__name__)
 
@@ -184,9 +185,11 @@ async def main() -> None:
         health_server.state.mark_ready()
 
         logger.info(
-            "permplaces_start providers=%d overpass_endpoints=%d geoapify_enabled=%s "
-            "twogis_enabled=%s foursquare_enabled=%s geoapify_daily_budget=%d "
+            "permplaces_start version=%s providers=%d overpass_endpoints=%d "
+            "geoapify_enabled=%s twogis_enabled=%s foursquare_enabled=%s "
+            "geoapify_daily_budget=%d "
             "cache_ttl_seconds=%s cache_max_entries=%d health_port=%d",
+            APP_VERSION,
             len(aggregate_providers),
             len(settings.overpass_endpoints),
             geoapify_provider is not None,
