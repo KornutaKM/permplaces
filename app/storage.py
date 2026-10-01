@@ -2,12 +2,12 @@ from __future__ import annotations
 
 import json
 from dataclasses import asdict, replace
-from pathlib import Path
 from typing import Any
 
 import aiosqlite
 
 from app.data import FieldSource, PhotoRef, SourceRef, Venue
+from app.database import initialize_database
 
 
 def _venue_from_payload(payload: str) -> Venue | None:
@@ -58,23 +58,7 @@ class FavoritesRepository:
         self._database_path = database_path
 
     async def initialize(self) -> None:
-        path = Path(self._database_path)
-        path.parent.mkdir(parents=True, exist_ok=True)
-
-        async with aiosqlite.connect(self._database_path) as database:
-            await database.execute("PRAGMA journal_mode=WAL")
-            await database.execute(
-                """
-                CREATE TABLE IF NOT EXISTS favorites (
-                    user_id INTEGER NOT NULL,
-                    venue_id TEXT NOT NULL,
-                    payload TEXT NOT NULL,
-                    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-                    PRIMARY KEY (user_id, venue_id)
-                )
-                """
-            )
-            await database.commit()
+        await initialize_database(self._database_path)
 
     async def toggle(self, *, user_id: int, venue: Venue) -> bool:
         async with aiosqlite.connect(self._database_path) as database:
