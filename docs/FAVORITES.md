@@ -60,6 +60,14 @@ Removing a favorite removes tag rows attached to all known aliases in the same t
 Favorites can be filtered locally by those user-selected tags without external requests. See
 `docs/FAVORITE_TAGS.md`.
 
+## Local search
+
+The current user's already loaded favorites can be searched locally by saved venue text, personal
+note and personal tag labels. This search does not call a places provider, does not change
+provider provenance and does not persist a search-history row.
+
+Matching and deterministic ranking are documented in `docs/FAVORITE_SEARCH.md`.
+
 ## Safety
 
 Alias matching is scoped by Telegram user ID. Two different users never affect each other's
