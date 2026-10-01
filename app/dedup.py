@@ -303,6 +303,11 @@ def merge_venues(primary: Venue, secondary: Venue) -> Venue:
         updates["rating"] = secondary.rating
         updates["rating_scale"] = secondary.rating_scale
         updates["review_count"] = secondary.review_count
+        chosen_sources = [
+            item
+            for item in chosen_sources
+            if item.field_name not in {"rating", "rating_scale", "review_count"}
+        ]
         for field_name in ("rating", "rating_scale", "review_count"):
             value = getattr(secondary, field_name)
             if not _missing(value):
