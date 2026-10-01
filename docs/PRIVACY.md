@@ -14,8 +14,9 @@ The SQLite database stores, per Telegram user:
 Provider request-budget counters are application/operator state and are not user-specific.
 
 The bot does not persist a separate location-history table or search-history table. Current
-search state, including a location sent for nearby search and a query used to search inside the
-already loaded favorites list, lives in the in-memory aiogram FSM for the running process.
+search state, including a location sent for nearby search, a query used to search inside the
+already loaded favorites list and the selected local favorite sort mode, lives in the in-memory
+aiogram FSM for the running process.
 
 This document describes PermPlaces application storage only. It does not control Telegram's own
 chat/message retention.
