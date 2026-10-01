@@ -260,3 +260,100 @@ def test_primary_photos_are_not_mixed_with_secondary_provider_photos() -> None:
     )
 
     assert merged.photos == primary_photos
+
+
+
+def test_generic_venue_type_prefix_can_match_at_branch_distance() -> None:
+    osm = venue(
+        source="osm",
+        source_id="node/30",
+        name="Кафе Север",
+        latitude=58.0100,
+    )
+    geoapify = venue(
+        source="geoapify",
+        source_id="place-30",
+        name="Север",
+        latitude=58.0101,
+    )
+
+    assert same_venue(osm, geoapify) is True
+
+
+def test_generic_name_match_without_address_stays_distinct_when_not_very_close() -> None:
+    first = venue(
+        source="osm",
+        source_id="node/31",
+        name="Кафе Север",
+        latitude=58.0100,
+    )
+    second = venue(
+        source="geoapify",
+        source_id="place-31",
+        name="Север",
+        latitude=58.0108,
+    )
+
+    assert same_venue(first, second) is False
+
+
+def test_address_signature_allows_safe_osm_geoapify_name_merge() -> None:
+    osm = venue(
+        source="osm",
+        source_id="node/32",
+        name="Кофейня Север",
+        address="ул. Ленина, 10",
+        latitude=58.0100,
+    )
+    geoapify = venue(
+        source="geoapify",
+        source_id="place-32",
+        name="Север",
+        address="улица Ленина 10, Пермь",
+        latitude=58.0110,
+    )
+
+    assert same_venue(osm, geoapify) is True
+
+
+def test_shared_chain_website_does_not_merge_separate_branches() -> None:
+    first = venue(
+        source="osm",
+        source_id="node/33",
+        name="Coffee Chain",
+        address="Ленина, 10",
+        website="https://chain.example/menu",
+        latitude=58.0100,
+    )
+    second = venue(
+        source="geoapify",
+        source_id="place-33",
+        name="Coffee Chain",
+        address="Ленина, 40",
+        website="https://www.chain.example/",
+        latitude=58.0110,
+    )
+
+    assert same_venue(first, second) is False
+
+
+def test_equal_retained_field_keeps_corroborating_provenance() -> None:
+    primary = venue(source="osm", source_id="node/34", name="Север")
+    secondary = venue(
+        source="geoapify",
+        source_id="place-34",
+        name="СЕВЕР",
+        latitude=58.0101,
+    )
+
+    merged = merge_venues(primary, secondary)
+
+    name_sources = {
+        (item.provider, item.source_id)
+        for item in merged.field_sources
+        if item.field_name == "name"
+    }
+    assert name_sources == {
+        ("osm", "node/34"),
+        ("geoapify", "place-34"),
+    }
