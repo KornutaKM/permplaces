@@ -264,18 +264,30 @@ def share_venue_url(venue: Venue) -> str:
     )
 
 
-def rating_keyboard(venue_id: str) -> InlineKeyboardMarkup:
-    return InlineKeyboardMarkup(
-        inline_keyboard=[
+def rating_keyboard(
+    venue_id: str,
+    *,
+    current_score: int | None = None,
+) -> InlineKeyboardMarkup:
+    rows = [
+        [
+            InlineKeyboardButton(
+                text=("✅ " if current_score == score else "") + f"{score} ⭐",
+                callback_data=f"rating:{score}:{venue_id}",
+            )
+            for score in range(1, 6)
+        ]
+    ]
+    if current_score is not None:
+        rows.append(
             [
                 InlineKeyboardButton(
-                    text=f"{score} ⭐",
-                    callback_data=f"rating:{score}:{venue_id}",
+                    text="🗑 Удалить мою оценку",
+                    callback_data=f"rating:remove:{venue_id}",
                 )
-                for score in range(1, 6)
             ]
-        ]
-    )
+        )
+    return InlineKeyboardMarkup(inline_keyboard=rows)
 
 
 def venue_keyboard(venue: Venue) -> InlineKeyboardMarkup:
