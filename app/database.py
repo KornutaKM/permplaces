@@ -5,7 +5,7 @@ from pathlib import Path
 
 import aiosqlite
 
-SCHEMA_VERSION = 3
+SCHEMA_VERSION = 4
 
 
 class DatabaseSchemaError(RuntimeError):
@@ -204,6 +204,17 @@ async def initialize_database(database_path: str) -> None:
                 )
                 """
             )
+            await database.execute(
+                """
+                CREATE TABLE IF NOT EXISTS favorite_tags (
+                    user_id INTEGER NOT NULL,
+                    identity_key TEXT NOT NULL,
+                    tag TEXT NOT NULL,
+                    updated_at_ns INTEGER NOT NULL,
+                    PRIMARY KEY (user_id, identity_key, tag)
+                )
+                """
+            )
             await _require_columns(
                 database,
                 "favorite_identity_aliases",
@@ -213,6 +224,11 @@ async def initialize_database(database_path: str) -> None:
                 database,
                 "favorite_notes",
                 {"user_id", "identity_key", "note", "updated_at_ns"},
+            )
+            await _require_columns(
+                database,
+                "favorite_tags",
+                {"user_id", "identity_key", "tag", "updated_at_ns"},
             )
             await database.execute(
                 """
@@ -224,6 +240,12 @@ async def initialize_database(database_path: str) -> None:
                 """
                 CREATE INDEX IF NOT EXISTS idx_favorite_notes_identity_key
                 ON favorite_notes (identity_key, updated_at_ns DESC)
+                """
+            )
+            await database.execute(
+                """
+                CREATE INDEX IF NOT EXISTS idx_favorite_tags_identity_key
+                ON favorite_tags (identity_key, updated_at_ns DESC)
                 """
             )
 
