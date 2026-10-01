@@ -547,3 +547,23 @@ def test_venue_keyboard_exposes_explicit_rating_action() -> None:
     )
 
     assert button.callback_data == "rate:osm:node/rate"
+
+
+
+def test_rating_keyboard_marks_current_score_and_offers_removal() -> None:
+    keyboard = rating_keyboard("osm:node/88", current_score=4)
+
+    labels = [
+        button.text
+        for row in keyboard.inline_keyboard
+        for button in row
+    ]
+    callbacks = [
+        button.callback_data
+        for row in keyboard.inline_keyboard
+        for button in row
+    ]
+
+    assert "✅ 4 ⭐" in labels
+    assert "🗑 Удалить мою оценку" in labels
+    assert "rating:remove:osm:node/88" in callbacks
