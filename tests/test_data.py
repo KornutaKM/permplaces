@@ -891,7 +891,13 @@ def test_favorite_overview_keyboard_exposes_local_management_actions() -> None:
     assert "🔎 Поиск в избранном" in labels
     assert "↕️ Сортировка: 🏷 Сначала с метками" in labels
     assert "← К результатам" in labels
-    assert callbacks == ["ff:menu", "fs:start", "fso:menu", "results:current"]
+    assert callbacks == [
+        "ff:menu",
+        "fx:menu",
+        "fs:start",
+        "fso:menu",
+        "results:current",
+    ]
 
 
 def test_favorite_results_keyboard_exposes_overview() -> None:
