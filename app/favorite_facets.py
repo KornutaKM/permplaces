@@ -34,7 +34,7 @@ def _clean(value: str | None) -> str | None:
 
 def _token(namespace: str, value: str) -> str:
     digest = hashlib.sha256(
-        f"{namespace}\0{value}".encode("utf-8")
+        f"{namespace}\0{value}".encode()
     ).hexdigest()
     return digest[:20]
 
