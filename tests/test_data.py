@@ -4,6 +4,7 @@ from app.data import PhotoRef, SourceRef, Venue
 from app.ui import (
     filters_keyboard,
     primary_photo_url,
+    rating_keyboard,
     render_venue_card,
     route_keyboard,
     share_venue_url,
@@ -482,3 +483,67 @@ def test_geoapify_card_has_required_free_plan_attribution() -> None:
     assert "OpenStreetMap contributors" in card
     assert "Powered by Geoapify" in card
     assert "Источники:" in card
+
+
+
+def test_card_distinguishes_community_rating_from_provider_rating() -> None:
+    venue = Venue(
+        id="osm:node/community-rating",
+        name="Community place",
+        category="cafe",
+        category_label="Кофейня",
+        latitude=58.01,
+        longitude=56.25,
+        source="osm",
+        source_id="node/community-rating",
+        rating=8.7,
+        rating_scale=10.0,
+        review_count=100,
+        community_rating=4.3,
+        community_rating_count=7,
+    )
+
+    card = render_venue_card(venue)
+
+    assert "⭐ 8.7/10 (100)" in card
+    assert "👥 PermPlaces: 4.3/5 (7)" in card
+
+
+def test_rating_keyboard_encodes_score_and_venue_identity() -> None:
+    keyboard = rating_keyboard("osm:node/42")
+
+    callbacks = [
+        button.callback_data
+        for row in keyboard.inline_keyboard
+        for button in row
+    ]
+
+    assert callbacks == [
+        "rating:1:osm:node/42",
+        "rating:2:osm:node/42",
+        "rating:3:osm:node/42",
+        "rating:4:osm:node/42",
+        "rating:5:osm:node/42",
+    ]
+
+
+def test_venue_keyboard_exposes_explicit_rating_action() -> None:
+    venue = Venue(
+        id="osm:node/rate",
+        name="Rate me",
+        category="cafe",
+        category_label="Кофейня",
+        latitude=58.01,
+        longitude=56.25,
+        source="osm",
+        source_id="node/rate",
+    )
+
+    button = next(
+        button
+        for row in venue_keyboard(venue).inline_keyboard
+        for button in row
+        if button.text == "⭐ Оценить"
+    )
+
+    assert button.callback_data == "rate:osm:node/rate"
