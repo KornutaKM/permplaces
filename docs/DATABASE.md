@@ -65,17 +65,25 @@ rating rows.
 Use `inspect` after a backup/restore drill and before diagnosing schema-related startup failures.
 It runs `PRAGMA quick_check` first.
 
-## Favorite alias consistency audit
+## Favorite and user-metadata consistency audit
 
-Schema v2 treats `favorite_identity_aliases` as a derived index of `favorites`. Operators can
-verify that relationship without printing user IDs, venue payloads or identity keys:
+Schema v2+ treats `favorite_identity_aliases` as a derived index of `favorites`. Schema v3/v4
+also stores private notes/tags keyed by the same exact identities. Operators can verify these
+relationships without printing user IDs, venue payloads, note text, tag rows or identity keys:
 
 ```bash
 python -m app.db_admin audit --database data/permplaces.db
 ```
 
-A consistent database prints `audit_ok` and zero counts for missing, unexpected and orphan alias
-rows. Drift prints `audit_drift` and exits with status 3.
+A consistent current database prints `audit_ok` and zero counts for missing/unexpected/orphan
+alias rows, orphan/invalid notes and orphan/invalid tags. Drift prints `audit_drift` and exits
+with status 3.
+
+Metadata attachment is checked against identities derived directly from favorite payloads, not
+against the potentially drifted alias index. This prevents an unexpected alias row from making an
+orphan note or tag appear valid. For older schemas where `favorite_notes` or `favorite_tags`
+does not exist yet, the corresponding counters are reported as `None` rather than treated as
+drift.
 
 The audit is read-only. If drift must be repaired, stop the bot and run:
 
@@ -87,7 +95,12 @@ python -m app.db_admin repair-aliases \
 
 Repair creates a timestamped `pre-alias-repair` safety backup, rebuilds the alias index only from
 the exact provider identities already stored in favorite payloads, runs `quick_check`, and then
-requires a clean audit. It does not change favorite payloads, community ratings, personal notes or personal tags.
+requires the alias portion of the audit to be clean. It does not change favorite payloads,
+community ratings, personal notes or personal tags.
+
+`repair-aliases` deliberately does not delete or rewrite orphan/invalid user metadata. Such drift
+requires operator investigation or restoration from a known-good backup because PermPlaces will
+not guess which favorite user-authored content belonged to.
 
 ## Backward and forward compatibility
 

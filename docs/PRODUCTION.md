@@ -248,7 +248,9 @@ If readiness stays unhealthy:
    and `python -m app.db_admin audit` before considering a restore; a database newer than the
    application must not be downgraded in place;
 7. if only the derived favorite alias index is inconsistent, stop the bot and use
-   `python -m app.db_admin repair-aliases --confirm-stopped` instead of restoring the whole database.
+   `python -m app.db_admin repair-aliases --confirm-stopped` instead of restoring the whole database;
+8. if `audit` reports orphan/invalid notes or tags, do not use alias repair as a destructive
+   cleanup tool: preserve a verified backup and investigate/restore the affected user metadata.
 
 Do not delete `permplaces-data` during routine troubleshooting. In particular,
 `docker compose down -v` destroys the named volume and therefore the live favorites and community-ratings database.

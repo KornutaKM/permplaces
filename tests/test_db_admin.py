@@ -423,3 +423,159 @@ def test_repair_favorite_aliases_rebuilds_index_and_keeps_backup(
     backup_audit = audit_database(safety_backup)
     assert backup_audit.consistent is False
     assert backup_audit.orphan_aliases == 1
+
+
+
+def test_audit_database_detects_orphan_and_invalid_user_metadata(
+    tmp_path: Path,
+) -> None:
+    database = tmp_path / "permplaces.db"
+    _create_auditable_database(database)
+
+    with sqlite3.connect(database) as connection:
+        connection.execute("PRAGMA ignore_check_constraints = ON")
+        connection.executemany(
+            """
+            INSERT INTO favorite_notes (
+                user_id,
+                identity_key,
+                note,
+                updated_at_ns
+            )
+            VALUES (?, ?, ?, ?)
+            """,
+            [
+                (10, "osm:node/audit", "", 1),
+                (10, "osm:node/missing", "orphan note", 2),
+            ],
+        )
+        connection.executemany(
+            """
+            INSERT INTO favorite_tags (
+                user_id,
+                identity_key,
+                tag,
+                updated_at_ns
+            )
+            VALUES (?, ?, ?, ?)
+            """,
+            [
+                (10, "osm:node/audit", "custom", 3),
+                (10, "osm:node/missing", "want", 4),
+            ],
+        )
+        connection.commit()
+
+    audit = audit_database(database)
+
+    assert audit.aliases_consistent is True
+    assert audit.metadata_consistent is False
+    assert audit.consistent is False
+    assert audit.orphan_notes == 1
+    assert audit.invalid_notes == 1
+    assert audit.orphan_tags == 1
+    assert audit.invalid_tags == 1
+
+
+def test_metadata_audit_uses_favorite_payload_identities_not_drifted_alias_index(
+    tmp_path: Path,
+) -> None:
+    database = tmp_path / "permplaces.db"
+    _create_auditable_database(database)
+
+    with sqlite3.connect(database) as connection:
+        connection.execute(
+            """
+            INSERT INTO favorite_identity_aliases (
+                user_id,
+                venue_id,
+                identity_key
+            )
+            VALUES (10, 'geoapify:place-audit', 'osm:node/unexpected')
+            """
+        )
+        connection.execute(
+            """
+            INSERT INTO favorite_notes (
+                user_id,
+                identity_key,
+                note,
+                updated_at_ns
+            )
+            VALUES (10, 'osm:node/unexpected', 'must stay orphaned', 5)
+            """
+        )
+        connection.commit()
+
+    audit = audit_database(database)
+
+    assert audit.aliases_consistent is False
+    assert audit.orphan_notes == 1
+    assert audit.metadata_consistent is False
+
+
+def test_alias_repair_does_not_delete_or_block_on_unrelated_metadata_drift(
+    tmp_path: Path,
+) -> None:
+    database = tmp_path / "permplaces.db"
+    _create_auditable_database(database)
+
+    with sqlite3.connect(database) as connection:
+        connection.execute("DELETE FROM favorite_identity_aliases")
+        connection.execute(
+            """
+            INSERT INTO favorite_notes (
+                user_id,
+                identity_key,
+                note,
+                updated_at_ns
+            )
+            VALUES (10, 'osm:node/orphan', 'preserve for operator recovery', 6)
+            """
+        )
+        connection.commit()
+
+    safety_backup = repair_favorite_aliases(
+        database,
+        confirm_stopped=True,
+    )
+    audit = audit_database(database)
+
+    assert safety_backup.is_file()
+    assert audit.aliases_consistent is True
+    assert audit.metadata_consistent is False
+    assert audit.orphan_notes == 1
+
+    with sqlite3.connect(database) as connection:
+        note = connection.execute(
+            """
+            SELECT note
+            FROM favorite_notes
+            WHERE identity_key = 'osm:node/orphan'
+            """
+        ).fetchone()
+
+    assert note == ("preserve for operator recovery",)
+
+
+
+def test_metadata_audit_tolerates_legacy_database_without_metadata_tables(
+    tmp_path: Path,
+) -> None:
+    database = tmp_path / "permplaces.db"
+    _create_auditable_database(database)
+
+    with sqlite3.connect(database) as connection:
+        connection.execute("DROP TABLE favorite_notes")
+        connection.execute("DROP TABLE favorite_tags")
+        connection.commit()
+
+    audit = audit_database(database)
+
+    assert audit.aliases_consistent is True
+    assert audit.metadata_consistent is True
+    assert audit.consistent is True
+    assert audit.orphan_notes is None
+    assert audit.invalid_notes is None
+    assert audit.orphan_tags is None
+    assert audit.invalid_tags is None
