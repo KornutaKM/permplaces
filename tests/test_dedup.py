@@ -1,4 +1,6 @@
-from app.data import PhotoRef, Venue
+from dataclasses import replace
+
+from app.data import FieldSource, PhotoRef, Venue
 from app.dedup import ensure_provenance, merge_provider_results, merge_venues, same_venue
 
 
@@ -356,4 +358,42 @@ def test_equal_retained_field_keeps_corroborating_provenance() -> None:
     assert name_sources == {
         ("osm", "node/34"),
         ("geoapify", "place-34"),
+    }
+
+
+
+def test_secondary_rating_clears_stray_primary_rating_group_provenance() -> None:
+    primary = replace(
+        venue(source="osm", source_id="node/35"),
+        rating_scale=5.0,
+        field_sources=(
+            FieldSource(
+                field_name="rating_scale",
+                provider="osm",
+                source_id="node/35",
+            ),
+        ),
+    )
+    secondary = venue(
+        source="foursquare",
+        source_id="fsq-35",
+        rating=8.6,
+        rating_scale=10.0,
+        review_count=42,
+    )
+
+    merged = merge_venues(primary, secondary)
+
+    assert merged.rating == 8.6
+    assert merged.rating_scale == 10.0
+    assert merged.review_count == 42
+    rating_sources = {
+        (item.field_name, item.provider)
+        for item in merged.field_sources
+        if item.field_name in {"rating", "rating_scale", "review_count"}
+    }
+    assert rating_sources == {
+        ("rating", "foursquare"),
+        ("rating_scale", "foursquare"),
+        ("review_count", "foursquare"),
     }
