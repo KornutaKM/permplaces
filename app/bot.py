@@ -704,6 +704,22 @@ async def favorites(
         venues=venues,
     )
     if not venues:
+        await state.update_data(
+            results=[],
+            favorite_all_results=[],
+            favorite_filter=None,
+            favorite_search_query=None,
+            favorite_category_filter=None,
+            favorite_district_filter=None,
+            favorite_district_missing=False,
+            favorite_cuisine_filter=None,
+            favorite_cuisine_missing=False,
+            favorite_compare_primary_id=None,
+            favorite_sort=DEFAULT_FAVORITE_SORT,
+            result_index=0,
+            category="favorites",
+            result_scenario=None,
+        )
         await message.answer(
             "❤️ <b>Избранное пока пусто.</b>\n\n"
             "Откройте найденное место и нажмите «❤️ В избранное»."
@@ -721,6 +737,7 @@ async def favorites(
         favorite_district_missing=False,
         favorite_cuisine_filter=None,
         favorite_cuisine_missing=False,
+        favorite_compare_primary_id=None,
         favorite_sort=DEFAULT_FAVORITE_SORT,
         result_index=0,
         category="favorites",
