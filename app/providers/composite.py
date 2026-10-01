@@ -8,6 +8,7 @@ from app.data import Venue
 from app.dedup import merge_provider_results
 from app.filters import PlaceFilters
 from app.providers.base import PlacesProvider, ProviderError
+from app.providers.capabilities import provider_capabilities
 
 logger = logging.getLogger(__name__)
 
@@ -30,6 +31,17 @@ class CompositePlacesProvider:
         limit: int,
         filters: PlaceFilters | None = None,
     ) -> list[Venue]:
+        selected = tuple(
+            provider
+            for provider in self._providers
+            if provider_capabilities(provider).supports_nearby(
+                category=category,
+                filters=filters,
+            )
+        )
+        if not selected:
+            return []
+
         async def call(provider: PlacesProvider) -> list[Venue]:
             return await provider.search_nearby(
                 category=category,
@@ -40,7 +52,7 @@ class CompositePlacesProvider:
                 filters=filters,
             )
 
-        return await self._collect(call, limit=limit)
+        return await self._collect(selected, call, limit=limit)
 
     async def search_in_area(
         self,
@@ -50,6 +62,17 @@ class CompositePlacesProvider:
         limit: int,
         filters: PlaceFilters | None = None,
     ) -> list[Venue]:
+        selected = tuple(
+            provider
+            for provider in self._providers
+            if provider_capabilities(provider).supports_area(
+                category=category,
+                filters=filters,
+            )
+        )
+        if not selected:
+            return []
+
         async def call(provider: PlacesProvider) -> list[Venue]:
             return await provider.search_in_area(
                 category=category,
@@ -58,16 +81,17 @@ class CompositePlacesProvider:
                 filters=filters,
             )
 
-        return await self._collect(call, limit=limit)
+        return await self._collect(selected, call, limit=limit)
 
     async def _collect(
         self,
+        providers: Sequence[PlacesProvider],
         call: Callable[[PlacesProvider], Awaitable[list[Venue]]],
         *,
         limit: int,
     ) -> list[Venue]:
         results = await asyncio.gather(
-            *(call(provider) for provider in self._providers),
+            *(call(provider) for provider in providers),
             return_exceptions=True,
         )
 
@@ -79,7 +103,7 @@ class CompositePlacesProvider:
                 logger.warning(
                     "places_composite event=provider_failed provider_index=%d providers_total=%d",
                     index,
-                    len(self._providers),
+                    len(providers),
                 )
                 continue
             if isinstance(result, BaseException):
