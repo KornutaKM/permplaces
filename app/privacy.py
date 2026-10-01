@@ -69,6 +69,10 @@ class UserDataRepository:
                 await rating_cursor.close()
 
                 await database.execute(
+                    "DELETE FROM favorite_identity_aliases WHERE user_id = ?",
+                    (user_id,),
+                )
+                await database.execute(
                     "DELETE FROM favorites WHERE user_id = ?",
                     (user_id,),
                 )
