@@ -26,6 +26,10 @@ Category/district/cuisine favorite facets are likewise in-memory view state. The
 saved favorite snapshots, are not sent to external providers, and do not create a persistent filter
 or analytics history.
 
+Favorite comparison is also in-memory only. It stores the currently selected primary favorite ID in
+FSM state while the flow is active, creates no comparison-history table, and makes no places
+provider request. The comparison card does not repeat personal note text.
+
 This document describes PermPlaces application storage only. It does not control Telegram's own
 chat/message retention.
 
