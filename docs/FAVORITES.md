@@ -86,11 +86,12 @@ the overview never geocodes or infers them.
 The overview always uses the full loaded favorite set rather than the current search/filter subset
 and makes no external provider request. See `docs/FAVORITE_OVERVIEW.md`.
 
-## Category and district facets
+## Category, district and cuisine facets
 
-The full loaded favorites set can be filtered locally by saved category and district fields. A
-missing district is a first-class unknown state and is never inferred from coordinates or address
-text.
+The full loaded favorites set can be filtered locally by saved category, district and cuisine
+fields. A missing district is a first-class unknown state and is never inferred from coordinates or
+address text. A missing cuisine is likewise kept unknown instead of being guessed from the venue
+name or category.
 
 Facets compose with personal-tag filtering and local sort. Text search keeps its separate relevance
 ordering and clears the active facets when a new successful query starts. See

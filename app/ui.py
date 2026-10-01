@@ -191,7 +191,7 @@ def results_keyboard(
         rows.append(
             [
                 InlineKeyboardButton(
-                    text="🧩 Категория / район",
+                    text="🧩 Категория / район / кухня",
                     callback_data="fx:menu",
                 )
             ]
@@ -418,7 +418,7 @@ def favorite_overview_keyboard(
             ],
             [
                 InlineKeyboardButton(
-                    text="🧩 Категория / район",
+                    text="🧩 Категория / район / кухня",
                     callback_data="fx:menu",
                 )
             ],
@@ -462,12 +462,18 @@ def favorite_facets_keyboard(
     active_category: str | None,
     active_district: str | None,
     district_missing: bool,
+    active_cuisine: str | None,
+    cuisine_missing: bool,
 ) -> InlineKeyboardMarkup:
     category_label = _facet_active_label(facets.categories, active_category) or "все"
     if district_missing:
         district_label = "не указан"
     else:
         district_label = _facet_active_label(facets.districts, active_district) or "все"
+    if cuisine_missing:
+        cuisine_label = "не указана"
+    else:
+        cuisine_label = _facet_active_label(facets.cuisines, active_cuisine) or "все"
 
     return InlineKeyboardMarkup(
         inline_keyboard=[
@@ -485,7 +491,13 @@ def favorite_facets_keyboard(
             ],
             [
                 InlineKeyboardButton(
-                    text="🧹 Сбросить категорию и район",
+                    text=f"🍜 Кухня: {cuisine_label}",
+                    callback_data="fx:cuisines",
+                )
+            ],
+            [
+                InlineKeyboardButton(
+                    text="🧹 Сбросить локальные facets",
                     callback_data="fx:reset",
                 )
             ],
@@ -568,6 +580,55 @@ def favorite_district_facets_keyboard(
                     text=("✅ " if district_missing else "")
                     + f"Район не указан ({facets.missing_district})",
                     callback_data="fx:d:missing",
+                )
+            ]
+        )
+    rows.append(
+        [
+            InlineKeyboardButton(
+                text="← К фильтрам",
+                callback_data="fx:menu",
+            )
+        ]
+    )
+    return InlineKeyboardMarkup(inline_keyboard=rows)
+
+
+def favorite_cuisine_facets_keyboard(
+    facets: FavoriteFacets,
+    *,
+    active_cuisine: str | None,
+    cuisine_missing: bool,
+) -> InlineKeyboardMarkup:
+    rows = [
+        [
+            InlineKeyboardButton(
+                text=(
+                    "✅ Все кухни"
+                    if active_cuisine is None and not cuisine_missing
+                    else "Все кухни"
+                ),
+                callback_data="fx:u:all",
+            )
+        ]
+    ]
+    rows.extend(
+        [
+            InlineKeyboardButton(
+                text=("✅ " if active_cuisine == option.value and not cuisine_missing else "")
+                + f"{option.label} ({option.count})",
+                callback_data=f"fx:u:{option.token}",
+            )
+        ]
+        for option in facets.cuisines
+    )
+    if facets.missing_cuisine:
+        rows.append(
+            [
+                InlineKeyboardButton(
+                    text=("✅ " if cuisine_missing else "")
+                    + f"Кухня не указана ({facets.missing_cuisine})",
+                    callback_data="fx:u:missing",
                 )
             ]
         )

@@ -14,6 +14,7 @@ from app.districts import DISTRICT_BY_KEY, PERM_DISTRICTS, PERM_RELATION_ID
 from app.favorite_facets import (
     build_favorite_facets,
     category_from_token,
+    cuisine_from_token,
     district_from_token,
     filter_favorites_by_facets,
 )
@@ -57,6 +58,7 @@ from app.ui import (
     delete_data_confirmation_keyboard,
     districts_keyboard,
     favorite_category_facets_keyboard,
+    favorite_cuisine_facets_keyboard,
     favorite_district_facets_keyboard,
     favorite_facets_keyboard,
     favorite_filter_keyboard,
@@ -271,11 +273,18 @@ def _favorite_view_results(
         if isinstance(data.get("favorite_district_filter"), str)
         else None
     )
+    cuisine_filter = (
+        data.get("favorite_cuisine_filter")
+        if isinstance(data.get("favorite_cuisine_filter"), str)
+        else None
+    )
     venues = filter_favorites_by_facets(
         venues,
         category=category_filter,
         district=district_filter,
         district_missing=data.get("favorite_district_missing") is True,
+        cuisine=cuisine_filter,
+        cuisine_missing=data.get("favorite_cuisine_missing") is True,
     )
 
     sort_key = data.get("favorite_sort")
@@ -309,6 +318,14 @@ def _favorite_view_state(data: dict[str, object]) -> dict[str, object]:
         "favorite_district_missing": (
             data.get("favorite_district_missing") is True
         ),
+        "favorite_cuisine_filter": (
+            data.get("favorite_cuisine_filter")
+            if isinstance(data.get("favorite_cuisine_filter"), str)
+            else None
+        ),
+        "favorite_cuisine_missing": (
+            data.get("favorite_cuisine_missing") is True
+        ),
     }
 
 
@@ -328,6 +345,8 @@ def _coherent_favorite_view(
         favorite_category_filter=None,
         favorite_district_filter=None,
         favorite_district_missing=False,
+        favorite_cuisine_filter=None,
+        favorite_cuisine_missing=False,
     )
     return _favorite_view_results(reset_data, all_results), _favorite_view_state(
         reset_data
@@ -693,6 +712,8 @@ async def favorites(
         favorite_category_filter=None,
         favorite_district_filter=None,
         favorite_district_missing=False,
+        favorite_cuisine_filter=None,
+        favorite_cuisine_missing=False,
         favorite_sort=DEFAULT_FAVORITE_SORT,
         result_index=0,
         category="favorites",
@@ -972,6 +993,8 @@ async def favorite(
             favorite_category_filter=None,
             favorite_district_filter=None,
             favorite_district_missing=False,
+            favorite_cuisine_filter=None,
+            favorite_cuisine_missing=False,
             result_index=0,
         )
         if callback.message:
@@ -1474,6 +1497,12 @@ async def favorite_facets_menu(
                 else None
             ),
             district_missing=data.get("favorite_district_missing") is True,
+            active_cuisine=(
+                data.get("favorite_cuisine_filter")
+                if isinstance(data.get("favorite_cuisine_filter"), str)
+                else None
+            ),
+            cuisine_missing=data.get("favorite_cuisine_missing") is True,
         )
     )
 
@@ -1531,6 +1560,35 @@ async def favorite_district_facets_menu(
                 else None
             ),
             district_missing=data.get("favorite_district_missing") is True,
+        )
+    )
+
+
+@router.callback_query(F.data == "fx:cuisines")
+async def favorite_cuisine_facets_menu(
+    callback: CallbackQuery,
+    state: FSMContext,
+) -> None:
+    await callback.answer()
+    if not callback.message:
+        return
+
+    data = await state.get_data()
+    context = _favorite_facets_context(data)
+    if context is None:
+        return
+
+    _all_results, venues = context
+    facets = build_favorite_facets(venues)
+    await callback.message.edit_reply_markup(
+        reply_markup=favorite_cuisine_facets_keyboard(
+            facets,
+            active_cuisine=(
+                data.get("favorite_cuisine_filter")
+                if isinstance(data.get("favorite_cuisine_filter"), str)
+                else None
+            ),
+            cuisine_missing=data.get("favorite_cuisine_missing") is True,
         )
     )
 
@@ -1631,6 +1689,59 @@ async def favorite_district_facet_selected(
     await _edit_current_result(callback, state)
 
 
+@router.callback_query(F.data.startswith("fx:u:"))
+async def favorite_cuisine_facet_selected(
+    callback: CallbackQuery,
+    state: FSMContext,
+) -> None:
+    if not callback.data:
+        return
+
+    data = await state.get_data()
+    context = _favorite_facets_context(data)
+    if context is None:
+        await callback.answer("Список избранного устарел.")
+        return
+
+    all_results, venues = context
+    token = callback.data.removeprefix("fx:u:")
+    facets = build_favorite_facets(venues)
+
+    cuisine_filter: str | None = None
+    cuisine_missing = False
+    if token == "all":
+        pass
+    elif token == "missing":
+        if not facets.missing_cuisine:
+            await callback.answer("Карточек без кухни больше нет.")
+            return
+        cuisine_missing = True
+    else:
+        cuisine_filter = cuisine_from_token(facets, token)
+        if cuisine_filter is None:
+            await callback.answer("Этот фильтр устарел. Откройте меню снова.")
+            return
+
+    view_data = dict(data)
+    view_data["favorite_cuisine_filter"] = cuisine_filter
+    view_data["favorite_cuisine_missing"] = cuisine_missing
+    view_data["favorite_search_query"] = None
+    results = _favorite_view_results(view_data, all_results)
+    if not results:
+        await callback.answer("В текущем сочетании фильтров нет мест.")
+        return
+
+    await state.update_data(
+        results=results,
+        result_index=0,
+        favorite_cuisine_filter=cuisine_filter,
+        favorite_cuisine_missing=cuisine_missing,
+        favorite_search_query=None,
+    )
+    await callback.answer("Кухня обновлена")
+    await _edit_current_result(callback, state)
+
+
 @router.callback_query(F.data == "fx:reset")
 async def favorite_facets_reset(
     callback: CallbackQuery,
@@ -1648,6 +1759,8 @@ async def favorite_facets_reset(
         favorite_category_filter=None,
         favorite_district_filter=None,
         favorite_district_missing=False,
+        favorite_cuisine_filter=None,
+        favorite_cuisine_missing=False,
         favorite_search_query=None,
     )
     results = _favorite_view_results(view_data, all_results)
@@ -1661,9 +1774,11 @@ async def favorite_facets_reset(
         favorite_category_filter=None,
         favorite_district_filter=None,
         favorite_district_missing=False,
+        favorite_cuisine_filter=None,
+        favorite_cuisine_missing=False,
         favorite_search_query=None,
     )
-    await callback.answer("Категория и район сброшены")
+    await callback.answer("Локальные facets сброшены")
     await _edit_current_result(callback, state)
 
 
@@ -1811,6 +1926,8 @@ async def favorite_search_clear(
         favorite_category_filter=None,
         favorite_district_filter=None,
         favorite_district_missing=False,
+        favorite_cuisine_filter=None,
+        favorite_cuisine_missing=False,
     )
     results = _favorite_view_results(view_data, all_results)
     await state.set_state(None)
@@ -1822,6 +1939,8 @@ async def favorite_search_clear(
         favorite_category_filter=None,
         favorite_district_filter=None,
         favorite_district_missing=False,
+        favorite_cuisine_filter=None,
+        favorite_cuisine_missing=False,
     )
     await callback.answer("Поиск сброшен")
     await _edit_current_result(callback, state)
@@ -1873,6 +1992,8 @@ async def favorite_search_text(
         favorite_category_filter=None,
         favorite_district_filter=None,
         favorite_district_missing=False,
+        favorite_cuisine_filter=None,
+        favorite_cuisine_missing=False,
     )
 
     venue = matches[0]

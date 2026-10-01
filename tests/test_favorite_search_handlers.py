@@ -88,6 +88,8 @@ async def test_favorite_search_text_searches_name_note_and_tags_locally() -> Non
             "favorite_category_filter": "cafe",
             "favorite_district_filter": "Ленинский",
             "favorite_district_missing": False,
+            "favorite_cuisine_filter": "coffee_shop",
+            "favorite_cuisine_missing": False,
             "result_index": 0,
         }
     )
@@ -108,6 +110,10 @@ async def test_favorite_search_text_searches_name_note_and_tags_locally() -> Non
     assert state.data["favorite_category_filter"] is None
     assert state.data["favorite_district_filter"] is None
     assert state.data["favorite_district_missing"] is False
+    assert state.data["favorite_cuisine_filter"] is None
+    assert state.data["favorite_cuisine_missing"] is False
+    assert state.data["favorite_cuisine_filter"] is None
+    assert state.data["favorite_cuisine_missing"] is False
     assert len(state.data["results"]) == 1  # type: ignore[arg-type]
     assert state.data["results"][0]["id"] == first.id  # type: ignore[index]
     rendered = answer.await_args.args[0]
@@ -162,6 +168,8 @@ async def test_favorite_search_clear_restores_all_results_and_resets_local_views
             "favorite_category_filter": "cafe",
             "favorite_district_filter": None,
             "favorite_district_missing": False,
+            "favorite_cuisine_filter": "coffee_shop",
+            "favorite_cuisine_missing": False,
             "result_index": 0,
             "result_scenario": None,
         }
