@@ -8,6 +8,7 @@ import aiosqlite
 
 from app.data import FieldSource, PhotoRef, SourceRef, Venue
 from app.database import initialize_database
+from app.identity import venue_identity_keys
 
 
 def _venue_from_payload(payload: str) -> Venue | None:
@@ -61,46 +62,75 @@ class FavoritesRepository:
         await initialize_database(self._database_path)
 
     async def toggle(self, *, user_id: int, venue: Venue) -> bool:
+        target_keys = set(venue_identity_keys(venue))
+
         async with aiosqlite.connect(self._database_path) as database:
             await database.execute("PRAGMA busy_timeout=5000")
             await database.execute("BEGIN IMMEDIATE")
-            cursor = await database.execute(
-                "SELECT 1 FROM favorites WHERE user_id = ? AND venue_id = ?",
-                (user_id, venue.id),
-            )
-            exists = await cursor.fetchone()
-            await cursor.close()
+            try:
+                cursor = await database.execute(
+                    """
+                    SELECT venue_id, payload
+                    FROM favorites
+                    WHERE user_id = ?
+                    """,
+                    (user_id,),
+                )
+                rows = await cursor.fetchall()
+                await cursor.close()
 
-            if exists:
+                matching_ids: list[str] = []
+                for stored_id, payload in rows:
+                    if not isinstance(stored_id, str):
+                        continue
+                    if stored_id == venue.id:
+                        matching_ids.append(stored_id)
+                        continue
+                    if not isinstance(payload, str):
+                        continue
+                    stored = _venue_from_payload(payload)
+                    if stored is None:
+                        continue
+                    if target_keys.intersection(venue_identity_keys(stored)):
+                        matching_ids.append(stored_id)
+
+                if matching_ids:
+                    for stored_id in matching_ids:
+                        await database.execute(
+                            """
+                            DELETE FROM favorites
+                            WHERE user_id = ? AND venue_id = ?
+                            """,
+                            (user_id, stored_id),
+                        )
+                    await database.commit()
+                    return False
+
+                persistent_venue = replace(
+                    venue,
+                    distance_m=None,
+                    is_open_now=None,
+                    is_open_late=None,
+                    community_rating=None,
+                    community_rating_count=None,
+                )
+                payload = json.dumps(
+                    asdict(persistent_venue),
+                    ensure_ascii=False,
+                    separators=(",", ":"),
+                )
                 await database.execute(
-                    "DELETE FROM favorites WHERE user_id = ? AND venue_id = ?",
-                    (user_id, venue.id),
+                    """
+                    INSERT INTO favorites (user_id, venue_id, payload)
+                    VALUES (?, ?, ?)
+                    """,
+                    (user_id, venue.id, payload),
                 )
                 await database.commit()
-                return False
-
-            persistent_venue = replace(
-                venue,
-                distance_m=None,
-                is_open_now=None,
-                is_open_late=None,
-                community_rating=None,
-                community_rating_count=None,
-            )
-            payload = json.dumps(
-                asdict(persistent_venue),
-                ensure_ascii=False,
-                separators=(",", ":"),
-            )
-            await database.execute(
-                """
-                INSERT INTO favorites (user_id, venue_id, payload)
-                VALUES (?, ?, ?)
-                """,
-                (user_id, venue.id, payload),
-            )
-            await database.commit()
-            return True
+                return True
+            except BaseException:
+                await database.rollback()
+                raise
 
     async def list_for_user(self, *, user_id: int) -> list[Venue]:
         async with aiosqlite.connect(self._database_path) as database:
@@ -117,10 +147,19 @@ class FavoritesRepository:
             await cursor.close()
 
         venues: list[Venue] = []
+        seen_keys: set[str] = set()
         for (payload,) in rows:
             if not isinstance(payload, str):
                 continue
             venue = _venue_from_payload(payload)
-            if venue is not None:
-                venues.append(venue)
+            if venue is None:
+                continue
+
+            keys = set(venue_identity_keys(venue))
+            if seen_keys.intersection(keys):
+                seen_keys.update(keys)
+                continue
+
+            venues.append(venue)
+            seen_keys.update(keys)
         return venues
