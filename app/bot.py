@@ -956,11 +956,23 @@ async def favorite_note_text(
         await message.answer("Карточка устарела. Откройте избранное снова.")
         return
 
-    saved = await notes_repository.set_note(
-        user_id=message.from_user.id,
-        venue=venue,
-        text=text,
-    )
+    try:
+        saved = await notes_repository.set_note(
+            user_id=message.from_user.id,
+            venue=venue,
+            text=text,
+        )
+    except ValueError as exc:
+        if str(exc) != "note requires a saved favorite":
+            raise
+        await state.update_data(note_venue_id=None)
+        await state.set_state(None)
+        await message.answer(
+            "Избранное изменилось. Откройте сохранённое место заново "
+            "и повторите редактирование заметки."
+        )
+        return
+
     updated_venue = replace(venue, personal_note=saved.text)
     updated_results = [
         asdict(updated_venue) if item.get("id") == venue_id else item
