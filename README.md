@@ -4,7 +4,7 @@ Telegram-ассистент для поиска кафе, ресторанов, 
 
 ## Статус
 
-Версия 0.38 добавляет детерминированную локальную сортировку избранного: по порядку сохранения, названию, наличию личной заметки или числу личных меток, с корректной композицией tag-filter/search и без внешних provider requests.
+Версия 0.39 расширяет read-only SQLite audit: кроме derived favorite alias index он проверяет orphan/invalid personal notes и personal tags относительно exact identities из самих favorite payloads, без вывода пользовательского содержимого и без автоматического удаления данных.
 
 Рабочие вертикальные сценарии:
 
@@ -90,7 +90,8 @@ Telegram-ассистент для поиска кафе, ресторанов, 
 - hardened container runtime: UID 10001, read-only root FS, `cap_drop: ALL`, `no-new-privileges`, resource limits.
 - versioned SQLite schema v4 через `PRAGMA user_version` и централизованный startup migration;
 - SQLite admin CLI: `python -m app.db_admin backup|verify|inspect|audit|repair-aliases|restore` с fail-closed guards;
-- `db_admin audit` проверяет derived favorite alias index без изменения данных; repair требует остановленного бота и создаёт pre-repair backup;
+- `db_admin audit` проверяет derived favorite alias index, orphan/invalid personal notes и tags без вывода пользовательского содержимого; repair-aliases остаётся узким и не удаляет metadata;
+- metadata audit использует exact identities из favorite payloads как source of truth, поэтому drifted alias-index не может легитимизировать orphan note/tag;
 - production runbook для secrets, exact-SHA deploy, backup/restore drill и application rollback: `docs/PRODUCTION.md`.
 
 ## Принцип данных
