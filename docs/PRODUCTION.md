@@ -85,7 +85,7 @@ docker image inspect permplaces:local >/dev/null 2>&1 &&   docker image tag perm
 
 For a release that raises the SQLite schema version, create and copy a verified database backup
 **before** starting the new image. The migration runs during startup, so the pre-migration backup
-is the rollback boundary for the database. v0.35 raises the schema from 2 to 3 for personal notes.
+is the rollback boundary for the database. v0.36 raises the schema from 3 to 4 for personal favorite tags.
 
 Do not assume that an older application image can open a migrated database: PermPlaces rejects a
 database whose schema version is newer than the running application.
@@ -140,10 +140,10 @@ docker compose cp \
   "./backups/permplaces-$STAMP.db"
 ```
 
-The same SQLite backup also contains community ratings, personal notes and the persistent provider budget counters.
+The same SQLite backup also contains community ratings, personal notes, personal tags and the persistent provider budget counters.
 
-User-triggered `/mydata` deletion removes live favorites, ratings and personal notes from the
-application database, but it does not rewrite older backup files. Backup retention/deletion remains an
+User-triggered `/mydata` deletion removes live favorites, ratings, personal notes and personal
+tags from the application database, but it does not rewrite older backup files. Backup retention/deletion remains an
 operator responsibility; see `docs/PRIVACY.md`.
 
 Keep copied backups outside the Docker host as part of the operator's normal backup policy.
@@ -201,7 +201,7 @@ docker compose logs --since=5m bot
 
 A restore drill is successful only when `db_admin inspect` reports the expected schema version/counters,
 `db_admin audit` reports `audit_ok`, the bot becomes healthy, and expected favorites, community
-ratings and personal notes can be read after restart. Run a drill before the first production launch and
+ratings, personal notes and personal tags can be read after restart. Run a drill before the first production launch and
 after material storage changes.
 
 ## 7. Application rollback
@@ -231,7 +231,7 @@ After recovery, return the repository checkout to `main` before the next deploym
 
 Database restore is a separate decision. Do not restore an older SQLite backup merely because an
 application rollback was required. The exception is an intentional rollback across an incompatible
-schema boundary: for example, v0.34 cannot open a schema-v3 database created by v0.35, so that
+schema boundary: for example, v0.35 cannot open a schema-v4 database created by v0.36, so that
 rollback requires the matching pre-migration backup selected by the operator.
 
 ## 8. Failure checklist
