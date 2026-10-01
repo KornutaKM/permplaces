@@ -65,6 +65,25 @@ async def test_user_data_delete_is_atomic_and_user_scoped(tmp_path) -> None:
     assert other.favorites == 1
     assert other.ratings == 1
 
+    with sqlite3.connect(path) as database:
+        user_20_aliases = database.execute(
+            """
+            SELECT COUNT(*)
+            FROM favorite_identity_aliases
+            WHERE user_id = 20
+            """
+        ).fetchone()
+        user_21_aliases = database.execute(
+            """
+            SELECT COUNT(*)
+            FROM favorite_identity_aliases
+            WHERE user_id = 21
+            """
+        ).fetchone()
+
+    assert user_20_aliases == (0,)
+    assert user_21_aliases == (1,)
+
 
 @pytest.mark.asyncio
 async def test_user_data_delete_is_idempotent(tmp_path) -> None:
