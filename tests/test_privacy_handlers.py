@@ -5,6 +5,7 @@ import pytest
 
 from app.bot import (
     delete_my_data_confirmed,
+    export_my_data,
     my_data,
     provider_diagnostics,
 )
@@ -130,3 +131,41 @@ async def test_confirmed_privacy_delete_clears_persistent_and_session_data(
     rendered = edit_text.await_args.args[0]
     assert "Удалено избранных мест: <b>1</b>" in rendered
     assert "Удалено оценок: <b>1</b>" in rendered
+
+
+
+@pytest.mark.asyncio
+async def test_privacy_export_handler_sends_json_document_for_current_user(
+    tmp_path,
+) -> None:
+    path = str(tmp_path / "permplaces.db")
+    favorites = FavoritesRepository(path)
+    ratings = RatingsRepository(path)
+    repository = UserDataRepository(path)
+    await repository.initialize()
+
+    await favorites.toggle(user_id=400, venue=venue())
+    await ratings.set_rating(user_id=400, venue=venue(), score=5)
+
+    answer_document = AsyncMock()
+    answer_callback = AsyncMock()
+    callback = SimpleNamespace(
+        from_user=SimpleNamespace(id=400),
+        answer=answer_callback,
+        message=SimpleNamespace(answer_document=answer_document),
+    )
+
+    await export_my_data(
+        callback,  # type: ignore[arg-type]
+        repository,
+    )
+
+    answer_callback.assert_awaited_once_with("Готовлю экспорт…")
+    answer_document.assert_awaited_once()
+    document = answer_document.await_args.args[0]
+    assert document.filename == "permplaces-mydata.json"
+
+    caption = answer_document.await_args.kwargs["caption"]
+    assert "Избранное: 1" in caption
+    assert "Оценки: 1" in caption
+    assert "400" not in caption
