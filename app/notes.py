@@ -82,13 +82,36 @@ class NotesRepository:
 
         keys = venue_identity_keys(venue)
         placeholders = ",".join("?" for _ in keys)
-        canonical_key = canonical_venue_key(venue)
+        preferred_key = canonical_venue_key(venue)
         updated_at_ns = time_ns()
 
         async with aiosqlite.connect(self._database_path) as database:
             await database.execute("PRAGMA busy_timeout=5000")
             await database.execute("BEGIN IMMEDIATE")
             try:
+                alias_cursor = await database.execute(
+                    f"""
+                    SELECT identity_key
+                    FROM favorite_identity_aliases
+                    WHERE user_id = ?
+                      AND identity_key IN ({placeholders})
+                    """,
+                    (user_id, *keys),
+                )
+                favorite_keys = {
+                    row[0]
+                    for row in await alias_cursor.fetchall()
+                    if row and isinstance(row[0], str)
+                }
+                await alias_cursor.close()
+                if not favorite_keys:
+                    raise ValueError("note requires a saved favorite")
+
+                canonical_key = (
+                    preferred_key
+                    if preferred_key in favorite_keys
+                    else next(key for key in keys if key in favorite_keys)
+                )
                 await database.execute(
                     f"""
                     DELETE FROM favorite_notes
