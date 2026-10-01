@@ -244,7 +244,7 @@ class OverpassProvider:
         self._owns_client = client is None
         self._client = client or httpx.AsyncClient(
             timeout=httpx.Timeout(timeout_seconds),
-            headers={"User-Agent": "PermPlaces/0.31 (+https://github.com/KornutaKM/permplaces)"},
+            headers={"User-Agent": "PermPlaces/0.32 (+https://github.com/KornutaKM/permplaces)"},
         )
 
     async def close(self) -> None:
