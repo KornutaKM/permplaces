@@ -83,7 +83,7 @@ python -m app.db_admin repair-aliases \
 
 Repair creates a timestamped `pre-alias-repair` safety backup, rebuilds the alias index only from
 the exact provider identities already stored in favorite payloads, runs `quick_check`, and then
-requires a clean audit. It does not change favorite payloads or community ratings.
+requires a clean audit. It does not change favorite payloads, community ratings or personal notes.
 
 ## Backward and forward compatibility
 
