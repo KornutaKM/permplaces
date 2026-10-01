@@ -211,7 +211,7 @@ class UserDataRepository:
         )
 
     async def delete_for_user(self, *, user_id: int) -> UserDataSummary:
-        """Delete favorites and community ratings in one SQLite transaction."""
+        """Delete favorites, ratings and personal notes in one SQLite transaction."""
 
         async with aiosqlite.connect(self._database_path) as database:
             await database.execute("PRAGMA busy_timeout=5000")
