@@ -12,6 +12,7 @@ from aiogram.types import BufferedInputFile, CallbackQuery, Message, ReplyKeyboa
 from app.data import FieldSource, PhotoRef, SourceRef, Venue
 from app.districts import DISTRICT_BY_KEY, PERM_DISTRICTS, PERM_RELATION_ID
 from app.filters import PlaceFilters
+from app.notes import MAX_PERSONAL_NOTE_LENGTH, NotesRepository
 from app.privacy import USER_DATA_EXPORT_FILENAME, UserDataRepository
 from app.providers.budget import SQLiteDailyRequestBudget, render_daily_budget_status
 from app.providers.capabilities import ProviderStatus, render_provider_statuses
@@ -31,6 +32,7 @@ from app.ui import (
     categories_keyboard,
     delete_data_confirmation_keyboard,
     districts_keyboard,
+    favorite_note_keyboard,
     filters_keyboard,
     home_keyboard,
     mydata_keyboard,
@@ -48,6 +50,10 @@ router = Router()
 
 class SearchState(StatesGroup):
     awaiting_query = State()
+
+
+class FavoriteNoteState(StatesGroup):
+    awaiting_text = State()
 
 
 WELCOME = """<b>Привет! 👋
@@ -495,12 +501,17 @@ async def favorites(
     state: FSMContext,
     favorites_repository: FavoritesRepository,
     ratings_repository: RatingsRepository,
+    notes_repository: NotesRepository,
 ) -> None:
     if message.from_user is None:
         return
 
     venues = await favorites_repository.list_for_user(user_id=message.from_user.id)
     venues = await ratings_repository.enrich_many(venues)
+    venues = await notes_repository.enrich_many(
+        user_id=message.from_user.id,
+        venues=venues,
+    )
     if not venues:
         await message.answer(
             "❤️ <b>Избранное пока пусто.</b>\n\n"
@@ -661,7 +672,12 @@ async def category_selected(
     )
 
 
-async def _send_venue_detail(message: Message, venue: Venue) -> None:
+async def _send_venue_detail(
+    message: Message,
+    venue: Venue,
+    *,
+    allow_note: bool = False,
+) -> None:
     card = render_venue_card(venue)
     photo_url = primary_photo_url(venue)
     if photo_url and len(card) <= 1024:
@@ -669,7 +685,7 @@ async def _send_venue_detail(message: Message, venue: Venue) -> None:
             await message.answer_photo(
                 photo=photo_url,
                 caption=card,
-                reply_markup=venue_keyboard(venue),
+                reply_markup=venue_keyboard(venue, allow_note=allow_note),
             )
             return
         except TelegramBadRequest:
@@ -677,7 +693,7 @@ async def _send_venue_detail(message: Message, venue: Venue) -> None:
 
     await message.answer(
         card,
-        reply_markup=venue_keyboard(venue),
+        reply_markup=venue_keyboard(venue, allow_note=allow_note),
         disable_web_page_preview=True,
     )
 
@@ -700,7 +716,11 @@ async def venue_detail(callback: CallbackQuery, state: FSMContext) -> None:
         await callback.message.edit_text("Карточка больше не доступна. Запустите поиск снова.")
         return
 
-    await _send_venue_detail(callback.message, venue)
+    await _send_venue_detail(
+        callback.message,
+        venue,
+        allow_note=data.get("category") == "favorites",
+    )
 
 
 @router.callback_query(F.data == "detail:close")
@@ -794,6 +814,160 @@ async def favorite(
         return
 
     await _edit_current_result(callback, state)
+
+
+@router.callback_query(F.data.startswith("favorite_note:edit:"))
+async def edit_favorite_note(
+    callback: CallbackQuery,
+    state: FSMContext,
+    notes_repository: NotesRepository,
+) -> None:
+    await callback.answer()
+    if not callback.data or callback.message is None:
+        return
+
+    data = await state.get_data()
+    results = data.get("results")
+    if data.get("category") != "favorites" or not isinstance(results, list):
+        await callback.message.answer(
+            "Заметка доступна только для актуального списка избранного."
+        )
+        return
+
+    venue_id = callback.data.removeprefix("favorite_note:edit:")
+    dict_results = [item for item in results if isinstance(item, dict)]
+    venue = _find_result(dict_results, venue_id)
+    if venue is None:
+        await callback.message.answer(
+            "Карточка устарела. Откройте избранное снова."
+        )
+        return
+
+    current = await notes_repository.get_for_venue(
+        user_id=callback.from_user.id,
+        venue=venue,
+    )
+    await state.set_state(FavoriteNoteState.awaiting_text)
+    await state.update_data(note_venue_id=venue.id)
+
+    current_text = (
+        f"\n\nТекущая заметка: <i>{escape(current.text)}</i>"
+        if current is not None
+        else ""
+    )
+    await callback.message.answer(
+        "<b>Личная заметка</b>\n\n"
+        f"Отправьте новый текст до {MAX_PERSONAL_NOTE_LENGTH} символов. "
+        "Заметка хранится только в PermPlaces и не отправляется провайдерам."
+        f"{current_text}",
+        reply_markup=favorite_note_keyboard(
+            venue.id,
+            has_note=current is not None,
+        ),
+    )
+
+
+@router.callback_query(F.data.startswith("favorite_note:remove:"))
+async def remove_favorite_note(
+    callback: CallbackQuery,
+    state: FSMContext,
+    notes_repository: NotesRepository,
+) -> None:
+    if not callback.data:
+        return
+
+    data = await state.get_data()
+    results = data.get("results")
+    if not isinstance(results, list):
+        await callback.answer("Карточка устарела.")
+        return
+
+    venue_id = callback.data.removeprefix("favorite_note:remove:")
+    dict_results = [item for item in results if isinstance(item, dict)]
+    venue = _find_result(dict_results, venue_id)
+    if venue is None:
+        await callback.answer("Карточка устарела.")
+        return
+
+    removed = await notes_repository.remove_note(
+        user_id=callback.from_user.id,
+        venue=venue,
+    )
+    updated_venue = replace(venue, personal_note=None)
+    updated_results = [
+        asdict(updated_venue) if item.get("id") == venue_id else item
+        for item in dict_results
+    ]
+    await state.update_data(results=updated_results, note_venue_id=None)
+    await state.set_state(None)
+    await callback.answer("Заметка удалена" if removed else "Заметки уже нет")
+    if callback.message:
+        await callback.message.edit_text(
+            "📝 Заметка удалена." if removed else "📝 Заметка уже отсутствует."
+        )
+
+
+@router.callback_query(F.data == "favorite_note:cancel")
+async def cancel_favorite_note(
+    callback: CallbackQuery,
+    state: FSMContext,
+) -> None:
+    await state.set_state(None)
+    await state.update_data(note_venue_id=None)
+    await callback.answer("Редактирование отменено")
+    if callback.message:
+        await callback.message.edit_text("Редактирование заметки отменено.")
+
+
+@router.message(FavoriteNoteState.awaiting_text, F.text)
+async def favorite_note_text(
+    message: Message,
+    state: FSMContext,
+    notes_repository: NotesRepository,
+) -> None:
+    if message.from_user is None:
+        return
+
+    text = (message.text or "").strip()
+    if not text:
+        await message.answer("Заметка не может быть пустой.")
+        return
+    if len(text) > MAX_PERSONAL_NOTE_LENGTH:
+        await message.answer(
+            f"Заметка слишком длинная. Максимум {MAX_PERSONAL_NOTE_LENGTH} символов."
+        )
+        return
+
+    data = await state.get_data()
+    venue_id = data.get("note_venue_id")
+    results = data.get("results")
+    if not isinstance(venue_id, str) or not isinstance(results, list):
+        await state.set_state(None)
+        await message.answer("Карточка устарела. Откройте избранное снова.")
+        return
+
+    dict_results = [item for item in results if isinstance(item, dict)]
+    venue = _find_result(dict_results, venue_id)
+    if venue is None:
+        await state.set_state(None)
+        await message.answer("Карточка устарела. Откройте избранное снова.")
+        return
+
+    saved = await notes_repository.set_note(
+        user_id=message.from_user.id,
+        venue=venue,
+        text=text,
+    )
+    updated_venue = replace(venue, personal_note=saved.text)
+    updated_results = [
+        asdict(updated_venue) if item.get("id") == venue_id else item
+        for item in dict_results
+    ]
+    await state.update_data(results=updated_results, note_venue_id=None)
+    await state.set_state(None)
+    await message.answer(
+        "📝 Заметка сохранена. Она будет видна только в вашем избранном."
+    )
 
 
 @router.callback_query(F.data.startswith("rate:"))
