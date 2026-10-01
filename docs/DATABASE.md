@@ -65,6 +65,40 @@ rating rows.
 Use `inspect` after a backup/restore drill and before diagnosing schema-related startup failures.
 It runs `PRAGMA quick_check` first.
 
+## Release preflight
+
+The target application can run one read-only gate over integrity, schema shape and derived-data
+consistency:
+
+```bash
+python -m app.db_admin preflight --database data/permplaces.db
+```
+
+For a current clean database the command prints `preflight_ok` and exits 0. It checks:
+
+- `PRAGMA quick_check`;
+- the installed PermPlaces application version and expected SQLite schema version;
+- required application tables and columns;
+- required application indexes;
+- favorite alias and private note/tag consistency using the same read-only audit contract.
+
+Non-ready states exit with status 3:
+
+- `preflight_migration_required` — the database schema is older than this application;
+- `preflight_schema_newer` — the database was written by a newer application;
+- `preflight_schema_drift` — the schema version matches but required tables, columns or indexes
+  are missing;
+- `preflight_data_drift` — schema checks pass but alias/private-metadata audit reports drift.
+
+A migration-required result is not corruption. For a release that intentionally raises
+`SCHEMA_VERSION`, create and verify the pre-migration backup before allowing startup migration.
+A schema-newer result is a fail-closed application mismatch: deploy the matching/newer application
+instead of writing with the older one.
+
+The command does not migrate, rebuild indexes, repair aliases or delete user metadata. Output is
+limited to versions, schema object names and aggregate audit counters; it does not print user IDs,
+favorite payloads, note text, tag rows or provider credentials.
+
 ## Favorite and user-metadata consistency audit
 
 Schema v2+ treats `favorite_identity_aliases` as a derived index of `favorites`. Schema v3/v4
