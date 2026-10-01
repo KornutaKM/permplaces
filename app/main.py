@@ -8,6 +8,7 @@ from aiogram.enums import ParseMode
 from app.bot import router
 from app.config import load_settings
 from app.health import HealthServer
+from app.providers.budget import DailyBudgetPlacesProvider, SQLiteDailyRequestBudget
 from app.providers.cache import CachedPlacesProvider
 from app.providers.capabilities import (
     FOURSQUARE_CAPABILITIES,
@@ -61,14 +62,24 @@ async def main() -> None:
     ] = [*overpass_providers]
 
     geoapify_provider: GeoapifyProvider | None = None
+    geoapify_budget: SQLiteDailyRequestBudget | None = None
     if settings.geoapify_api_key.strip():
         geoapify_provider = GeoapifyProvider(
             api_key=settings.geoapify_api_key,
             endpoint=settings.geoapify_url,
             timeout_seconds=settings.geoapify_timeout_seconds,
         )
-        geoapify_cache = CachedPlacesProvider(
+        geoapify_budget = SQLiteDailyRequestBudget(
+            settings.database_path,
+            provider="geoapify",
+            daily_limit=settings.geoapify_daily_request_budget,
+        )
+        budgeted_geoapify = DailyBudgetPlacesProvider(
             geoapify_provider,
+            budget=geoapify_budget,
+        )
+        geoapify_cache = CachedPlacesProvider(
+            budgeted_geoapify,
             ttl_seconds=settings.provider_cache_ttl_seconds,
             max_entries=settings.provider_cache_max_entries,
         )
@@ -164,17 +175,20 @@ async def main() -> None:
         await health_server.start()
         await favorites_repository.initialize()
         await ratings_repository.initialize()
+        if geoapify_budget is not None:
+            await geoapify_budget.initialize()
         health_server.state.mark_ready()
 
         logger.info(
             "permplaces_start providers=%d overpass_endpoints=%d geoapify_enabled=%s "
-            "twogis_enabled=%s foursquare_enabled=%s cache_ttl_seconds=%s "
-            "cache_max_entries=%d health_port=%d",
+            "twogis_enabled=%s foursquare_enabled=%s geoapify_daily_budget=%d "
+            "cache_ttl_seconds=%s cache_max_entries=%d health_port=%d",
             len(aggregate_providers),
             len(settings.overpass_endpoints),
             geoapify_provider is not None,
             twogis_provider is not None,
             foursquare_provider is not None,
+            settings.geoapify_daily_request_budget,
             settings.provider_cache_ttl_seconds,
             settings.provider_cache_max_entries,
             settings.health_port,

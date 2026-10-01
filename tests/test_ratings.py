@@ -141,3 +141,76 @@ def test_canonical_rating_key_uses_primary_when_osm_alias_is_absent() -> None:
     )
 
     assert canonical_rating_key(item) == "geoapify:place-3"
+
+
+
+@pytest.mark.asyncio
+async def test_user_rating_uses_latest_alias_vote_and_remove_clears_all_aliases(
+    tmp_path,
+) -> None:
+    repository = RatingsRepository(str(tmp_path / "permplaces.db"))
+    await repository.initialize()
+
+    geo_only = venue(source="geoapify", source_id="place-50")
+    await repository.set_rating(user_id=10, venue=geo_only, score=2)
+
+    merged = venue(
+        source="osm",
+        source_id="node/50",
+        source_refs=(
+            SourceRef("osm", "node/50"),
+            SourceRef("geoapify", "place-50"),
+        ),
+    )
+    await repository.set_rating(user_id=10, venue=merged, score=5)
+    await repository.set_rating(user_id=11, venue=merged, score=4)
+
+    assert await repository.user_rating_for_venue(user_id=10, venue=merged) == 5
+
+    summary = await repository.remove_rating(user_id=10, venue=merged)
+
+    assert await repository.user_rating_for_venue(user_id=10, venue=merged) is None
+    assert summary.count == 1
+    assert summary.average == 4
+
+
+@pytest.mark.asyncio
+async def test_batch_enrichment_keeps_aliases_and_venues_independent(tmp_path) -> None:
+    repository = RatingsRepository(str(tmp_path / "permplaces.db"))
+    await repository.initialize()
+
+    first_geo = venue(source="geoapify", source_id="place-60")
+    await repository.set_rating(user_id=1, venue=first_geo, score=2)
+
+    first_merged = venue(
+        source="osm",
+        source_id="node/60",
+        source_refs=(
+            SourceRef("osm", "node/60"),
+            SourceRef("geoapify", "place-60"),
+        ),
+    )
+    await repository.set_rating(user_id=1, venue=first_merged, score=5)
+    await repository.set_rating(user_id=2, venue=first_merged, score=3)
+
+    second = venue(source="osm", source_id="node/61")
+    await repository.set_rating(user_id=3, venue=second, score=1)
+
+    enriched = await repository.enrich_many([first_merged, second])
+
+    assert enriched[0].community_rating == 4
+    assert enriched[0].community_rating_count == 2
+    assert enriched[1].community_rating == 1
+    assert enriched[1].community_rating_count == 1
+
+
+@pytest.mark.asyncio
+async def test_removing_missing_rating_is_idempotent(tmp_path) -> None:
+    repository = RatingsRepository(str(tmp_path / "permplaces.db"))
+    await repository.initialize()
+    item = venue(source_id="node/70")
+
+    summary = await repository.remove_rating(user_id=99, venue=item)
+
+    assert summary.average is None
+    assert summary.count == 0
