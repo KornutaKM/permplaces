@@ -11,6 +11,12 @@ from aiogram.types import BufferedInputFile, CallbackQuery, Message, ReplyKeyboa
 
 from app.data import FieldSource, PhotoRef, SourceRef, Venue
 from app.districts import DISTRICT_BY_KEY, PERM_DISTRICTS, PERM_RELATION_ID
+from app.favorite_facets import (
+    build_favorite_facets,
+    category_from_token,
+    district_from_token,
+    filter_favorites_by_facets,
+)
 from app.favorite_overview import (
     build_favorite_overview,
     render_favorite_overview,
@@ -50,6 +56,9 @@ from app.ui import (
     categories_keyboard,
     delete_data_confirmation_keyboard,
     districts_keyboard,
+    favorite_category_facets_keyboard,
+    favorite_district_facets_keyboard,
+    favorite_facets_keyboard,
     favorite_filter_keyboard,
     favorite_note_keyboard,
     favorite_overview_keyboard,
@@ -252,35 +261,77 @@ def _favorite_view_results(
             if active_tag in venue.personal_tags
         ]
 
+    category_filter = (
+        data.get("favorite_category_filter")
+        if isinstance(data.get("favorite_category_filter"), str)
+        else None
+    )
+    district_filter = (
+        data.get("favorite_district_filter")
+        if isinstance(data.get("favorite_district_filter"), str)
+        else None
+    )
+    venues = filter_favorites_by_facets(
+        venues,
+        category=category_filter,
+        district=district_filter,
+        district_missing=data.get("favorite_district_missing") is True,
+    )
+
     sort_key = data.get("favorite_sort")
     if not isinstance(sort_key, str):
         sort_key = DEFAULT_FAVORITE_SORT
     return [asdict(venue) for venue in sort_favorites(venues, sort_key)]
 
 
+def _favorite_view_state(data: dict[str, object]) -> dict[str, object]:
+    return {
+        "favorite_filter": (
+            data.get("favorite_filter")
+            if isinstance(data.get("favorite_filter"), str)
+            else None
+        ),
+        "favorite_search_query": (
+            data.get("favorite_search_query")
+            if isinstance(data.get("favorite_search_query"), str)
+            else None
+        ),
+        "favorite_category_filter": (
+            data.get("favorite_category_filter")
+            if isinstance(data.get("favorite_category_filter"), str)
+            else None
+        ),
+        "favorite_district_filter": (
+            data.get("favorite_district_filter")
+            if isinstance(data.get("favorite_district_filter"), str)
+            else None
+        ),
+        "favorite_district_missing": (
+            data.get("favorite_district_missing") is True
+        ),
+    }
+
+
 def _coherent_favorite_view(
     data: dict[str, object],
     all_results: list[dict[str, object]],
-) -> tuple[list[dict[str, object]], str | None, str | None]:
+) -> tuple[list[dict[str, object]], dict[str, object]]:
     results = _favorite_view_results(data, all_results)
-    favorite_filter = (
-        data.get("favorite_filter")
-        if isinstance(data.get("favorite_filter"), str)
-        else None
-    )
-    favorite_search_query = (
-        data.get("favorite_search_query")
-        if isinstance(data.get("favorite_search_query"), str)
-        else None
-    )
-
+    view_state = _favorite_view_state(data)
     if results or not all_results:
-        return results, favorite_filter, favorite_search_query
+        return results, view_state
 
     reset_data = dict(data)
-    reset_data["favorite_filter"] = None
-    reset_data["favorite_search_query"] = None
-    return _favorite_view_results(reset_data, all_results), None, None
+    reset_data.update(
+        favorite_filter=None,
+        favorite_search_query=None,
+        favorite_category_filter=None,
+        favorite_district_filter=None,
+        favorite_district_missing=False,
+    )
+    return _favorite_view_results(reset_data, all_results), _favorite_view_state(
+        reset_data
+    )
 
 
 async def _edit_current_result(callback: CallbackQuery, state: FSMContext) -> None:
@@ -639,6 +690,9 @@ async def favorites(
         favorite_all_results=all_results,
         favorite_filter=None,
         favorite_search_query=None,
+        favorite_category_filter=None,
+        favorite_district_filter=None,
+        favorite_district_missing=False,
         favorite_sort=DEFAULT_FAVORITE_SORT,
         result_index=0,
         category="favorites",
@@ -915,6 +969,9 @@ async def favorite(
             favorite_all_results=[],
             favorite_filter=None,
             favorite_search_query=None,
+            favorite_category_filter=None,
+            favorite_district_filter=None,
+            favorite_district_missing=False,
             result_index=0,
         )
         if callback.message:
@@ -931,11 +988,10 @@ async def favorite(
                 )
         return
 
-    (
-        updated_results,
-        favorite_filter,
-        favorite_search_query,
-    ) = _coherent_favorite_view(data, updated_all_results)
+    updated_results, view_state = _coherent_favorite_view(
+        data,
+        updated_all_results,
+    )
 
     index = data.get("result_index", 0)
     if not isinstance(index, int):
@@ -944,8 +1000,7 @@ async def favorite(
     await state.update_data(
         results=updated_results,
         favorite_all_results=updated_all_results,
-        favorite_filter=favorite_filter,
-        favorite_search_query=favorite_search_query,
+        **view_state,
         result_index=index,
     )
 
@@ -966,12 +1021,12 @@ async def favorite(
                     can_next=index < len(updated_results) - 1,
                     favorites_mode=True,
                     active_favorite_tag=(
-                        favorite_filter
-                        if isinstance(favorite_filter, str)
+                        view_state.get("favorite_filter")
+                        if isinstance(view_state.get("favorite_filter"), str)
                         else None
                     ),
                     favorite_search_active=isinstance(
-                        favorite_search_query,
+                        view_state.get("favorite_search_query"),
                         str,
                     ),
                     active_favorite_sort=(
@@ -1079,16 +1134,14 @@ async def remove_favorite_note(
         if isinstance(all_results_raw, list)
         else updated_results
     )
-    (
-        updated_results,
-        favorite_filter,
-        favorite_search_query,
-    ) = _coherent_favorite_view(data, updated_all_results)
+    updated_results, view_state = _coherent_favorite_view(
+        data,
+        updated_all_results,
+    )
     await state.update_data(
         results=updated_results,
         favorite_all_results=updated_all_results,
-        favorite_filter=favorite_filter,
-        favorite_search_query=favorite_search_query,
+        **view_state,
         result_index=0,
         note_venue_id=None,
     )
@@ -1178,16 +1231,14 @@ async def favorite_note_text(
         if isinstance(all_results_raw, list)
         else updated_results
     )
-    (
-        updated_results,
-        favorite_filter,
-        favorite_search_query,
-    ) = _coherent_favorite_view(data, updated_all_results)
+    updated_results, view_state = _coherent_favorite_view(
+        data,
+        updated_all_results,
+    )
     await state.update_data(
         results=updated_results,
         favorite_all_results=updated_all_results,
-        favorite_filter=favorite_filter,
-        favorite_search_query=favorite_search_query,
+        **view_state,
         result_index=0,
         note_venue_id=None,
     )
@@ -1301,11 +1352,10 @@ async def favorite_tag_toggle(
         for item in all_results
     ]
 
-    (
-        filtered_results,
-        active_filter,
-        active_search_query,
-    ) = _coherent_favorite_view(data, updated_all_results)
+    filtered_results, view_state = _coherent_favorite_view(
+        data,
+        updated_all_results,
+    )
 
     index = data.get("result_index", 0)
     if not isinstance(index, int):
@@ -1315,8 +1365,7 @@ async def favorite_tag_toggle(
         favorite_all_results=updated_all_results,
         results=filtered_results,
         result_index=index,
-        favorite_filter=active_filter,
-        favorite_search_query=active_search_query,
+        **view_state,
     )
 
     await callback.answer(
