@@ -20,6 +20,7 @@ class DatabaseInspection:
     path: Path
     schema_version: int
     favorites: int | None
+    favorite_aliases: int | None
     ratings: int | None
     provider_budget_rows: int | None
 
@@ -82,6 +83,10 @@ def inspect_database(path: str | Path) -> DatabaseInspection:
                 path=database_path,
                 schema_version=schema_version,
                 favorites=_table_count(connection, "favorites"),
+                favorite_aliases=_table_count(
+                    connection,
+                    "favorite_identity_aliases",
+                ),
                 ratings=_table_count(connection, "venue_ratings"),
                 provider_budget_rows=_table_count(
                     connection,
@@ -254,6 +259,7 @@ def main() -> int:
                 f"path={inspection.path} "
                 f"schema_version={inspection.schema_version} "
                 f"favorites={inspection.favorites} "
+                f"favorite_aliases={inspection.favorite_aliases} "
                 f"ratings={inspection.ratings} "
                 f"provider_budget_rows={inspection.provider_budget_rows}"
             )

@@ -291,3 +291,42 @@ async def test_different_provider_identities_remain_separate_favorites(tmp_path)
 
     favorites = await repository.list_for_user(user_id=84)
     assert {item.id for item in favorites} == {first.id, second.id}
+
+
+
+@pytest.mark.asyncio
+async def test_favorite_toggle_maintains_indexed_identity_alias_rows(tmp_path) -> None:
+    database_path = tmp_path / "permplaces.db"
+    repository = FavoritesRepository(str(database_path))
+    await repository.initialize()
+    _geo, merged = aliased_venues()
+
+    assert await repository.toggle(user_id=85, venue=merged) is True
+
+    with sqlite3.connect(database_path) as database:
+        aliases = database.execute(
+            """
+            SELECT identity_key
+            FROM favorite_identity_aliases
+            WHERE user_id = 85
+            ORDER BY identity_key
+            """
+        ).fetchall()
+
+    assert aliases == [
+        ("geoapify:place-alias",),
+        ("osm:node/alias",),
+    ]
+
+    assert await repository.toggle(user_id=85, venue=merged) is False
+
+    with sqlite3.connect(database_path) as database:
+        alias_count = database.execute(
+            """
+            SELECT COUNT(*)
+            FROM favorite_identity_aliases
+            WHERE user_id = 85
+            """
+        ).fetchone()
+
+    assert alias_count == (0,)

@@ -7,7 +7,7 @@ budget counters.
 
 The application schema is versioned with SQLite `PRAGMA user_version`.
 
-Current version: `1`.
+Current version: `2`.
 
 Startup calls one central `initialize_database()` function before Telegram polling begins. The
 initializer:
@@ -19,8 +19,10 @@ initializer:
 - refuses to run if the database schema version is newer than the application;
 - updates `PRAGMA user_version` only after validation succeeds.
 
-Databases created by earlier PermPlaces versions have `user_version=0`. They are upgraded in
-place without deleting existing favorites or community ratings.
+Databases created by earlier PermPlaces versions are upgraded in place without deleting existing
+favorites or community ratings. The v1 → v2 migration creates the favorite identity alias index
+and backfills it from each stored favorite payload. If a historical payload cannot be decoded, its
+existing `venue_id` is still indexed as a conservative fallback identity.
 
 Malformed legacy tables are not silently accepted: startup fails before readiness instead of
 pretending that the database is compatible.
@@ -30,10 +32,12 @@ pretending that the database is compatible.
 Application-owned tables:
 
 - `favorites` — saved venue payloads per Telegram user;
+- `favorite_identity_aliases` — exact provider identity keys for indexed favorite lookup;
 - `venue_ratings` — local 1–5 community ratings;
 - `provider_daily_request_budget` — persistent application-side provider request counters.
 
-The rating index `idx_venue_ratings_venue_key` is part of the schema contract.
+The indexes `idx_venue_ratings_venue_key` and
+`idx_favorite_identity_aliases_lookup` are part of the schema contract.
 
 ## Operator inspection
 
@@ -46,7 +50,7 @@ python -m app.db_admin inspect --database data/permplaces.db
 Example:
 
 ```text
-inspect_ok path=data/permplaces.db schema_version=1 favorites=12 ratings=34 provider_budget_rows=1
+inspect_ok path=data/permplaces.db schema_version=2 favorites=12 favorite_aliases=19 ratings=34 provider_budget_rows=1
 ```
 
 The command does not print favorite payloads, Telegram user IDs, provider keys, coordinates or
@@ -64,5 +68,7 @@ Newer schema version:
 PermPlaces fails closed. Deploy the matching/newer application rather than downgrading and writing
 to a database it does not understand.
 
-Application rollback and database rollback remain separate decisions. See
-`docs/PRODUCTION.md`.
+Application rollback and database rollback remain separate decisions. After a schema v2 migration,
+an older v0.31 application intentionally refuses the newer database. Rolling the application back
+across this boundary therefore also requires an explicitly selected pre-migration database backup.
+See `docs/PRODUCTION.md`.

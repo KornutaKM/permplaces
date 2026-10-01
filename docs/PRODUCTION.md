@@ -83,6 +83,13 @@ docker image inspect permplaces:local >/dev/null 2>&1 &&   docker image tag perm
 
 ## 4. Deploy
 
+For a release that raises the SQLite schema version, create and copy a verified database backup
+**before** starting the new image. The migration runs during startup, so the pre-migration backup
+is the rollback boundary for the database. v0.32 raises the schema from 1 to 2.
+
+Do not assume that an older application image can open a migrated database: PermPlaces rejects a
+database whose schema version is newer than the running application.
+
 Build and replace only the bot service:
 
 ```bash
@@ -221,7 +228,9 @@ docker compose up -d --no-deps bot
 After recovery, return the repository checkout to `main` before the next deployment.
 
 Database restore is a separate decision. Do not restore an older SQLite backup merely because an
-application rollback was required.
+application rollback was required. The exception is an intentional rollback across an incompatible
+schema boundary: for example, v0.31 cannot open a schema-v2 database created by v0.32, so that
+rollback requires the matching pre-migration backup selected by the operator.
 
 ## 8. Failure checklist
 

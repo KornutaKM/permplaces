@@ -20,8 +20,9 @@ names, addresses, phone numbers or websites at persistence time.
 
 ## Alias-aware toggle
 
-When a user presses the favorite action, PermPlaces compares the selected venue's provider identity
-keys with every stored favorite for that same Telegram user.
+When a user presses the favorite action, PermPlaces looks up the selected venue's provider identity
+keys in the indexed `favorite_identity_aliases` table for that same Telegram user. It no longer
+needs to load and decode every saved favorite to find an alias match.
 
 If any key overlaps, all stored rows representing that aliased venue are removed and the toggle
 returns the "removed" state. This means a place favorited earlier as Geoapify can later be removed
@@ -32,9 +33,10 @@ concurrent-toggle serialization contract.
 
 ## Historical duplicates
 
-Older databases may already contain two favorite rows that later become aliases of one merged
-venue. Reads hide those duplicate alias rows deterministically: the newest ordered snapshot is
-returned and overlapping identities are suppressed.
+The schema v1 → v2 migration backfills alias rows for existing favorites. Older databases may
+already contain two favorite rows that later become aliases of one merged venue. Reads still hide
+those duplicate alias rows deterministically: the newest ordered snapshot is returned and
+overlapping identities are suppressed.
 
 The historical rows are not rewritten during read. A later favorite toggle for the merged venue
 removes every matching alias row in the same transaction.

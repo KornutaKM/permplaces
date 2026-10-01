@@ -181,7 +181,7 @@ class FoursquareProvider:
         self._headers = {
             "Accept": "application/json",
             "Authorization": f"Bearer {api_key.strip()}",
-            "User-Agent": "PermPlaces/0.31 (+https://github.com/KornutaKM/permplaces)",
+            "User-Agent": "PermPlaces/0.32 (+https://github.com/KornutaKM/permplaces)",
             "X-Places-Api-Version": _API_VERSION,
         }
         self._owns_client = client is None
