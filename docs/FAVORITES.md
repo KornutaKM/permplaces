@@ -50,6 +50,16 @@ treated as venue provenance.
 Removing a favorite removes notes attached to all known aliases for that favorite in the same
 transaction. See `docs/FAVORITE_NOTES.md`.
 
+## Personal tags
+
+Saved favorites can also carry predefined private organizational tags. Tags use the same exact
+provider identity keys, stay separate from the provider-backed favorite snapshot, and never count
+as evidence about venue capabilities.
+
+Removing a favorite removes tag rows attached to all known aliases in the same transaction.
+Favorites can be filtered locally by those user-selected tags without external requests. See
+`docs/FAVORITE_TAGS.md`.
+
 ## Safety
 
 Alias matching is scoped by Telegram user ID. Two different users never affect each other's
