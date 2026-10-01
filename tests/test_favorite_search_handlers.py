@@ -173,3 +173,37 @@ async def test_favorite_search_clear_restores_all_results_and_resets_local_views
     assert len(state.data["results"]) == 2  # type: ignore[arg-type]
     callback.answer.assert_awaited_once_with("Поиск сброшен")
     edit_text.assert_awaited_once()
+
+
+
+@pytest.mark.asyncio
+async def test_favorite_search_clear_restores_selected_sort() -> None:
+    first = venue("node/1", "Яблоко")
+    second = venue("node/2", "Альфа")
+    all_results = [asdict(first), asdict(second)]
+    state = FakeState(
+        {
+            "category": "favorites",
+            "favorite_all_results": all_results,
+            "results": [asdict(first)],
+            "favorite_filter": None,
+            "favorite_search_query": "яблоко",
+            "favorite_sort": "name",
+            "result_index": 0,
+            "result_scenario": None,
+        }
+    )
+    callback = SimpleNamespace(
+        answer=AsyncMock(),
+        message=SimpleNamespace(edit_text=AsyncMock()),
+    )
+
+    await favorite_search_clear(
+        callback,  # type: ignore[arg-type]
+        state,  # type: ignore[arg-type]
+    )
+
+    assert [
+        item["id"] for item in state.data["results"]  # type: ignore[index]
+    ] == [second.id, first.id]
+    assert state.data["favorite_sort"] == "name"
