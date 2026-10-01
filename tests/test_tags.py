@@ -1,4 +1,5 @@
 import sqlite3
+from dataclasses import replace
 
 import pytest
 
@@ -152,15 +153,20 @@ async def test_enrich_many_is_user_scoped_alias_aware_and_ordered(tmp_path) -> N
 
 
 def test_favorite_tag_counts_ignores_duplicates_and_unknown_values() -> None:
-    first = venue()
-    second = venue(source_id="node/tag-2")
-
-    counts = favorite_tag_counts(
-        [
-            Venue(**{**first.__dict__}) if hasattr(first, "__dict__") else first,
-            second,
-        ]
+    first = replace(
+        venue(),
+        personal_tags=("want", "want", "unknown"),
+    )
+    second = replace(
+        venue(source_id="node/tag-2"),
+        personal_tags=("want", "work"),
     )
 
+    counts = favorite_tag_counts([first, second])
+
     assert set(counts) == set(FAVORITE_TAG_KEYS)
-    assert all(value == 0 for value in counts.values())
+    assert counts["want"] == 2
+    assert counts["work"] == 1
+    assert counts["return"] == 0
+    assert counts["family"] == 0
+    assert counts["friends"] == 0
