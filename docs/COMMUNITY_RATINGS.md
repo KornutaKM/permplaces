@@ -21,8 +21,9 @@ remove it. Removal deletes that user's vote across every known provider alias fo
 
 ## Venue identity and aliases
 
-A merged venue may have several `source_refs`. Rating reads consider all known provider keys so
-votes collected before a later OSM/Geoapify merge remain visible.
+A merged venue may have several `source_refs`. Ratings and favorites share the same
+`provider:source_id` identity-key contract. Rating reads consider all known provider keys so votes
+collected before a later OSM/Geoapify merge remain visible.
 
 When an OSM source reference is available, new votes use that OSM identity as the canonical key.
 Otherwise the current primary provider identity is used.

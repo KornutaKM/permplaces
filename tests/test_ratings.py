@@ -214,3 +214,21 @@ async def test_removing_missing_rating_is_idempotent(tmp_path) -> None:
 
     assert summary.average is None
     assert summary.count == 0
+
+
+
+def test_rating_identity_helpers_match_shared_venue_identity_contract() -> None:
+    item = venue(
+        source="geoapify",
+        source_id="place-shared",
+        source_refs=(
+            SourceRef("geoapify", "place-shared"),
+            SourceRef("osm", "node/shared"),
+        ),
+    )
+
+    assert venue_rating_keys(item) == (
+        "geoapify:place-shared",
+        "osm:node/shared",
+    )
+    assert canonical_rating_key(item) == "osm:node/shared"

@@ -1,4 +1,7 @@
 import asyncio
+import json
+import sqlite3
+from dataclasses import asdict
 
 import pytest
 
@@ -162,3 +165,129 @@ async def test_favorites_round_trip_multi_provider_provenance(tmp_path) -> None:
     assert restored.review_count == 150
     assert restored.menu_url == "https://menu.example.test/place"
     assert restored.photos == venue.photos
+
+
+
+def aliased_venues() -> tuple[Venue, Venue]:
+    geo = Venue(
+        id="geoapify:place-alias",
+        name="Alias cafe",
+        category="cafe",
+        category_label="Кофейня",
+        latitude=58.01,
+        longitude=56.25,
+        source="geoapify",
+        source_id="place-alias",
+        source_refs=(SourceRef("geoapify", "place-alias"),),
+    )
+    merged = Venue(
+        id="osm:node/alias",
+        name="Alias cafe",
+        category="cafe",
+        category_label="Кофейня",
+        latitude=58.01,
+        longitude=56.25,
+        source="osm",
+        source_id="node/alias",
+        source_refs=(
+            SourceRef("osm", "node/alias"),
+            SourceRef("geoapify", "place-alias"),
+        ),
+    )
+    return geo, merged
+
+
+@pytest.mark.asyncio
+async def test_toggle_removes_existing_favorite_through_provider_alias(tmp_path) -> None:
+    database_path = tmp_path / "permplaces.db"
+    repository = FavoritesRepository(str(database_path))
+    await repository.initialize()
+    geo, merged = aliased_venues()
+
+    assert await repository.toggle(user_id=80, venue=geo) is True
+    assert await repository.toggle(user_id=80, venue=merged) is False
+
+    assert await repository.list_for_user(user_id=80) == []
+
+
+@pytest.mark.asyncio
+async def test_toggle_alias_matching_is_user_scoped(tmp_path) -> None:
+    database_path = tmp_path / "permplaces.db"
+    repository = FavoritesRepository(str(database_path))
+    await repository.initialize()
+    geo, merged = aliased_venues()
+
+    assert await repository.toggle(user_id=81, venue=geo) is True
+    assert await repository.toggle(user_id=82, venue=merged) is True
+    assert await repository.toggle(user_id=81, venue=merged) is False
+
+    user_82 = await repository.list_for_user(user_id=82)
+    assert len(user_82) == 1
+    assert user_82[0].id == merged.id
+
+
+@pytest.mark.asyncio
+async def test_list_hides_historical_duplicate_provider_aliases(tmp_path) -> None:
+    database_path = tmp_path / "permplaces.db"
+    repository = FavoritesRepository(str(database_path))
+    await repository.initialize()
+    geo, merged = aliased_venues()
+
+    with sqlite3.connect(database_path) as database:
+        database.executemany(
+            """
+            INSERT INTO favorites (user_id, venue_id, payload)
+            VALUES (?, ?, ?)
+            """,
+            [
+                (
+                    83,
+                    geo.id,
+                    json.dumps(asdict(geo), ensure_ascii=False),
+                ),
+                (
+                    83,
+                    merged.id,
+                    json.dumps(asdict(merged), ensure_ascii=False),
+                ),
+            ],
+        )
+        database.commit()
+
+    favorites = await repository.list_for_user(user_id=83)
+
+    assert len(favorites) == 1
+
+
+@pytest.mark.asyncio
+async def test_different_provider_identities_remain_separate_favorites(tmp_path) -> None:
+    database_path = tmp_path / "permplaces.db"
+    repository = FavoritesRepository(str(database_path))
+    await repository.initialize()
+
+    first = Venue(
+        id="osm:node/branch-1",
+        name="Chain",
+        category="cafe",
+        category_label="Кофейня",
+        latitude=58.01,
+        longitude=56.25,
+        source="osm",
+        source_id="node/branch-1",
+    )
+    second = Venue(
+        id="osm:node/branch-2",
+        name="Chain",
+        category="cafe",
+        category_label="Кофейня",
+        latitude=58.02,
+        longitude=56.26,
+        source="osm",
+        source_id="node/branch-2",
+    )
+
+    assert await repository.toggle(user_id=84, venue=first) is True
+    assert await repository.toggle(user_id=84, venue=second) is True
+
+    favorites = await repository.list_for_user(user_id=84)
+    assert {item.id for item in favorites} == {first.id, second.id}

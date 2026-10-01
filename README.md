@@ -4,7 +4,7 @@ Telegram-ассистент для поиска кафе, ресторанов, 
 
 ## Статус
 
-Версия 0.30 добавляет privacy/data controls через `/mydata`, транзакционное удаление пользовательских favorites+ratings и live `/providers` диагностику остатка локального Geoapify budget.
+Версия 0.31 добавляет единый provider-alias identity contract для ratings и favorites: избранное теперь корректно переключается между Geoapify/OSM merged-карточками и скрывает historical alias-дубликаты.
 
 Рабочие вертикальные сценарии:
 
@@ -53,6 +53,7 @@ Telegram-ассистент для поиска кафе, ресторанов, 
 - configurable graceful failover: fallback endpoint используется только после `ProviderError` primary;
 - runtime-логи provider latency, cache hit/miss/coalescing/eviction и failover без координат пользователя;
 - ❤️ постоянное избранное в SQLite, изолированное по Telegram user ID;
+- favorites используют provider aliases: одна физическая карточка не дублируется только из-за смены primary source после OSM/Geoapify merge;
 - ⭐ собственные оценки пользователей PermPlaces 1–5 без платного rating API;
 - community rating агрегируется по provider aliases без двойного учёта одного пользователя;
 - пользователь видит свою текущую оценку, может изменить или удалить её;
@@ -231,7 +232,7 @@ OverpassProvider + optional GeoapifyProvider + optional paid catalog providers
 OpenStreetMap + Geoapify Places + optional 2GIS/Foursquare
 ```
 
-Provider abstraction теперь включает deterministic aggregation, capability routing и provenance. Community ratings остаются отдельным локальным слоем после provider search. Контракты: `docs/PROVIDERS.md`, `docs/COMMUNITY_RATINGS.md`; privacy/data controls: `docs/PRIVACY.md`.
+Provider abstraction теперь включает deterministic aggregation, capability routing и provenance. Community ratings и favorites используют общий provider identity contract. Контракты: `docs/PROVIDERS.md`, `docs/COMMUNITY_RATINGS.md`, `docs/FAVORITES.md`; privacy/data controls: `docs/PRIVACY.md`.
 
 ## Следующие этапы
 
