@@ -45,9 +45,10 @@ favorites list remains available for clearing search or switching to a tag filte
 favorite sort mode.
 
 Text-search relevance ranking takes priority while a query is active. A successful new text search
-clears personal-tag/category/district filters so the visible result set cannot disagree with local
-filter state. Choosing an explicit sort or category/district facet clears the text query before
-applying that local view. See `docs/FAVORITE_SORTING.md` and `docs/FAVORITE_FACETS.md`.
+clears personal-tag/category/district/cuisine filters so the visible result set cannot disagree
+with local filter state. Choosing an explicit sort or category/district/cuisine facet clears the
+text query before applying that local view. See `docs/FAVORITE_SORTING.md` and
+`docs/FAVORITE_FACETS.md`.
 
 ## Privacy and provider behavior
 
