@@ -264,18 +264,22 @@ def share_venue_url(venue: Venue) -> str:
     )
 
 
-def mydata_keyboard(*, has_persistent_data: bool) -> InlineKeyboardMarkup:
-    rows: list[list[InlineKeyboardButton]] = []
-    if has_persistent_data:
-        rows.append(
+def mydata_keyboard(
+    *,
+    has_persistent_data: bool,
+) -> InlineKeyboardMarkup | None:
+    if not has_persistent_data:
+        return None
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
             [
                 InlineKeyboardButton(
                     text="🗑 Удалить мои данные",
                     callback_data="privacy:delete",
                 )
             ]
-        )
-    return InlineKeyboardMarkup(inline_keyboard=rows)
+        ]
+    )
 
 
 def delete_data_confirmation_keyboard() -> InlineKeyboardMarkup:
