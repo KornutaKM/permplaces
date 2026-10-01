@@ -572,14 +572,25 @@ def test_rating_keyboard_marks_current_score_and_offers_removal() -> None:
 
 
 
-def test_mydata_keyboard_only_exposes_delete_when_data_exists() -> None:
+def test_mydata_keyboard_exposes_export_and_delete_when_data_exists() -> None:
     assert mydata_keyboard(has_persistent_data=False) is None
 
     keyboard = mydata_keyboard(has_persistent_data=True)
     assert keyboard is not None
-    button = keyboard.inline_keyboard[0][0]
-    assert button.text == "🗑 Удалить мои данные"
-    assert button.callback_data == "privacy:delete"
+    buttons = [
+        button
+        for row in keyboard.inline_keyboard
+        for button in row
+    ]
+
+    assert [button.text for button in buttons] == [
+        "📦 Скачать JSON",
+        "🗑 Удалить мои данные",
+    ]
+    assert [button.callback_data for button in buttons] == [
+        "privacy:export",
+        "privacy:delete",
+    ]
 
 
 def test_delete_data_confirmation_requires_explicit_confirmation() -> None:
