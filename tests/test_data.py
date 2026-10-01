@@ -1,8 +1,12 @@
 from urllib.parse import parse_qs, urlsplit
 
 from app.data import PhotoRef, SourceRef, Venue
+from app.favorite_facets import build_favorite_facets
 from app.ui import (
     delete_data_confirmation_keyboard,
+    favorite_category_facets_keyboard,
+    favorite_district_facets_keyboard,
+    favorite_facets_keyboard,
     favorite_filter_keyboard,
     favorite_note_keyboard,
     favorite_overview_keyboard,
@@ -887,7 +891,13 @@ def test_favorite_overview_keyboard_exposes_local_management_actions() -> None:
     assert "🔎 Поиск в избранном" in labels
     assert "↕️ Сортировка: 🏷 Сначала с метками" in labels
     assert "← К результатам" in labels
-    assert callbacks == ["ff:menu", "fs:start", "fso:menu", "results:current"]
+    assert callbacks == [
+        "ff:menu",
+        "fx:menu",
+        "fs:start",
+        "fso:menu",
+        "results:current",
+    ]
 
 
 def test_favorite_results_keyboard_exposes_overview() -> None:
@@ -909,3 +919,106 @@ def test_favorite_results_keyboard_exposes_overview() -> None:
         if button.callback_data == "fo:overview"
     )
     assert overview.text == "📊 Обзор избранного"
+
+
+
+def test_favorites_results_keyboard_exposes_local_facets() -> None:
+    keyboard = results_keyboard(
+        "osm:node/facets",
+        can_previous=False,
+        can_next=False,
+        favorites_mode=True,
+    )
+    buttons = [
+        button
+        for row in keyboard.inline_keyboard
+        for button in row
+    ]
+
+    facet_button = next(
+        button
+        for button in buttons
+        if button.callback_data == "fx:menu"
+    )
+    assert facet_button.text == "🧩 Категория / район"
+
+
+def test_favorite_facets_keyboards_show_current_values_and_counts() -> None:
+    cafe = Venue(
+        id="osm:node/facet-1",
+        name="Cafe",
+        category="cafe",
+        category_label="Кофейня",
+        latitude=58.01,
+        longitude=56.25,
+        source="osm",
+        source_id="node/facet-1",
+        district="Ленинский",
+    )
+    restaurant = Venue(
+        id="osm:node/facet-2",
+        name="Restaurant",
+        category="restaurant",
+        category_label="Ресторан",
+        latitude=58.02,
+        longitude=56.26,
+        source="osm",
+        source_id="node/facet-2",
+    )
+    facets = build_favorite_facets([cafe, restaurant])
+
+    menu = favorite_facets_keyboard(
+        facets,
+        active_category="cafe",
+        active_district=None,
+        district_missing=True,
+    )
+    menu_labels = [
+        button.text
+        for row in menu.inline_keyboard
+        for button in row
+    ]
+    assert "🍽 Категория: Кофейня" in menu_labels
+    assert "🏙 Район: не указан" in menu_labels
+
+    categories = favorite_category_facets_keyboard(
+        facets,
+        active_category="cafe",
+    )
+    category_buttons = [
+        button
+        for row in categories.inline_keyboard
+        for button in row
+    ]
+    assert any(
+        button.text == "✅ Кофейня (1)"
+        and button.callback_data.startswith("fx:c:")
+        for button in category_buttons
+    )
+
+    districts = favorite_district_facets_keyboard(
+        facets,
+        active_district=None,
+        district_missing=True,
+    )
+    district_buttons = [
+        button
+        for row in districts.inline_keyboard
+        for button in row
+    ]
+    assert any(
+        button.text == "✅ Район не указан (1)"
+        and button.callback_data == "fx:d:missing"
+        for button in district_buttons
+    )
+
+
+def test_favorite_overview_keyboard_links_to_facets() -> None:
+    keyboard = favorite_overview_keyboard(active_sort="recent")
+    callbacks = [
+        button.callback_data
+        for row in keyboard.inline_keyboard
+        for button in row
+    ]
+
+    assert "fx:menu" in callbacks

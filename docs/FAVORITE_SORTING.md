@@ -17,11 +17,12 @@ have the same sort key.
 
 ## Search and filter interaction
 
-Tag filtering and sorting can be combined. The tag filter is applied first, then the selected sort.
+Tag filtering, category/district facets and sorting can be combined. Tag and facet filters are
+applied before the selected sort.
 
 Favorite text search has relevance ranking of its own, so an active text search temporarily takes
 priority over the selected sort. Choosing a sort while text search is active clears the text search
-and applies the selected sort to the current tag-filtered favorite set.
+and applies the selected sort to the current tag/facet-filtered favorite set.
 
 Clearing text search restores the selected favorite sort.
 

@@ -10,6 +10,7 @@ from aiogram.types import (
 
 from app.data import Venue
 from app.districts import PERM_DISTRICTS
+from app.favorite_facets import FavoriteFacets
 from app.favorite_sort import DEFAULT_FAVORITE_SORT, FAVORITE_SORT_LABELS
 from app.tags import FAVORITE_TAG_KEYS, FAVORITE_TAG_LABELS
 
@@ -184,6 +185,14 @@ def results_keyboard(
                 InlineKeyboardButton(
                     text=filter_label,
                     callback_data="ff:menu",
+                )
+            ]
+        )
+        rows.append(
+            [
+                InlineKeyboardButton(
+                    text="🧩 Категория / район",
+                    callback_data="fx:menu",
                 )
             ]
         )
@@ -409,6 +418,12 @@ def favorite_overview_keyboard(
             ],
             [
                 InlineKeyboardButton(
+                    text="🧩 Категория / район",
+                    callback_data="fx:menu",
+                )
+            ],
+            [
+                InlineKeyboardButton(
                     text="🔎 Поиск в избранном",
                     callback_data="fs:start",
                 )
@@ -427,6 +442,144 @@ def favorite_overview_keyboard(
             ],
         ]
     )
+
+
+def _facet_active_label(
+    options: tuple,
+    value: str | None,
+) -> str | None:
+    if value is None:
+        return None
+    for option in options:
+        if option.value == value:
+            return option.label
+    return value
+
+
+def favorite_facets_keyboard(
+    facets: FavoriteFacets,
+    *,
+    active_category: str | None,
+    active_district: str | None,
+    district_missing: bool,
+) -> InlineKeyboardMarkup:
+    category_label = _facet_active_label(facets.categories, active_category) or "все"
+    if district_missing:
+        district_label = "не указан"
+    else:
+        district_label = _facet_active_label(facets.districts, active_district) or "все"
+
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                InlineKeyboardButton(
+                    text=f"🍽 Категория: {category_label}",
+                    callback_data="fx:categories",
+                )
+            ],
+            [
+                InlineKeyboardButton(
+                    text=f"🏙 Район: {district_label}",
+                    callback_data="fx:districts",
+                )
+            ],
+            [
+                InlineKeyboardButton(
+                    text="🧹 Сбросить категорию и район",
+                    callback_data="fx:reset",
+                )
+            ],
+            [
+                InlineKeyboardButton(
+                    text="← К результатам",
+                    callback_data="results:current",
+                )
+            ],
+        ]
+    )
+
+
+def favorite_category_facets_keyboard(
+    facets: FavoriteFacets,
+    *,
+    active_category: str | None,
+) -> InlineKeyboardMarkup:
+    rows = [
+        [
+            InlineKeyboardButton(
+                text=("✅ " if active_category is None else "") + "Все категории",
+                callback_data="fx:c:all",
+            )
+        ]
+    ]
+    rows.extend(
+        [
+            InlineKeyboardButton(
+                text=("✅ " if active_category == option.value else "")
+                + f"{option.label} ({option.count})",
+                callback_data=f"fx:c:{option.token}",
+            )
+        ]
+        for option in facets.categories
+    )
+    rows.append(
+        [
+            InlineKeyboardButton(
+                text="← К фильтрам",
+                callback_data="fx:menu",
+            )
+        ]
+    )
+    return InlineKeyboardMarkup(inline_keyboard=rows)
+
+
+def favorite_district_facets_keyboard(
+    facets: FavoriteFacets,
+    *,
+    active_district: str | None,
+    district_missing: bool,
+) -> InlineKeyboardMarkup:
+    rows = [
+        [
+            InlineKeyboardButton(
+                text=(
+                    "✅ Все районы"
+                    if active_district is None and not district_missing
+                    else "Все районы"
+                ),
+                callback_data="fx:d:all",
+            )
+        ]
+    ]
+    rows.extend(
+        [
+            InlineKeyboardButton(
+                text=("✅ " if active_district == option.value and not district_missing else "")
+                + f"{option.label} ({option.count})",
+                callback_data=f"fx:d:{option.token}",
+            )
+        ]
+        for option in facets.districts
+    )
+    if facets.missing_district:
+        rows.append(
+            [
+                InlineKeyboardButton(
+                    text=("✅ " if district_missing else "")
+                    + f"Район не указан ({facets.missing_district})",
+                    callback_data="fx:d:missing",
+                )
+            ]
+        )
+    rows.append(
+        [
+            InlineKeyboardButton(
+                text="← К фильтрам",
+                callback_data="fx:menu",
+            )
+        ]
+    )
+    return InlineKeyboardMarkup(inline_keyboard=rows)
 
 
 def favorite_sort_keyboard(

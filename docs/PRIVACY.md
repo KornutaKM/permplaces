@@ -22,6 +22,10 @@ The favorites overview is also computed in memory from the already loaded favori
 current user's local note/tag metadata. It creates no persistent analytics table and does not send
 those aggregates to places providers.
 
+Category/district favorite facets are likewise in-memory view state. They are computed from saved
+favorite snapshots, are not sent to external providers, and do not create a persistent filter or
+analytics history.
+
 This document describes PermPlaces application storage only. It does not control Telegram's own
 chat/message retention.
 

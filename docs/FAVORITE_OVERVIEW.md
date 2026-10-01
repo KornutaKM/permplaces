@@ -35,6 +35,7 @@ From a favorite result card choose `📊 Обзор избранного`.
 The overview exposes navigation to:
 
 - tag filtering;
+- category/district facets;
 - local favorite search;
 - local favorite sorting;
 - the current favorite result card.
