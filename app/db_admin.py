@@ -6,12 +6,22 @@ import shutil
 import sqlite3
 import tempfile
 from contextlib import closing
+from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
 
 
 class DatabaseAdminError(RuntimeError):
     pass
+
+
+@dataclass(frozen=True, slots=True)
+class DatabaseInspection:
+    path: Path
+    schema_version: int
+    favorites: int | None
+    ratings: int | None
+    provider_budget_rows: int | None
 
 
 def _read_only_connection(path: Path) -> sqlite3.Connection:
@@ -44,6 +54,44 @@ def verify_database(path: str | Path) -> Path:
         )
 
     return database_path
+
+
+def _table_count(
+    connection: sqlite3.Connection,
+    table_name: str,
+) -> int | None:
+    row = connection.execute(
+        "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?",
+        (table_name,),
+    ).fetchone()
+    if row is None:
+        return None
+    count_row = connection.execute(
+        f'SELECT COUNT(*) FROM "{table_name}"'
+    ).fetchone()
+    return int(count_row[0]) if count_row is not None else 0
+
+
+def inspect_database(path: str | Path) -> DatabaseInspection:
+    database_path = verify_database(path)
+    try:
+        with closing(_read_only_connection(database_path)) as connection:
+            version_row = connection.execute("PRAGMA user_version").fetchone()
+            schema_version = int(version_row[0]) if version_row else 0
+            return DatabaseInspection(
+                path=database_path,
+                schema_version=schema_version,
+                favorites=_table_count(connection, "favorites"),
+                ratings=_table_count(connection, "venue_ratings"),
+                provider_budget_rows=_table_count(
+                    connection,
+                    "provider_daily_request_budget",
+                ),
+            )
+    except sqlite3.Error as exc:
+        raise DatabaseAdminError(
+            f"SQLite inspection failed for {database_path}: {exc}"
+        ) from exc
 
 
 def backup_database(
@@ -160,6 +208,12 @@ def _parser() -> argparse.ArgumentParser:
     verify = subparsers.add_parser("verify", help="Run SQLite quick_check.")
     verify.add_argument("--database", required=True)
 
+    inspect_parser = subparsers.add_parser(
+        "inspect",
+        help="Verify SQLite and print schema/data counters without row contents.",
+    )
+    inspect_parser.add_argument("--database", default=_database_default())
+
     restore = subparsers.add_parser(
         "restore",
         help="Restore a verified backup after the bot has been stopped.",
@@ -191,6 +245,18 @@ def main() -> int:
         if args.command == "verify":
             database = verify_database(args.database)
             print(f"verify_ok path={database}")
+            return 0
+
+        if args.command == "inspect":
+            inspection = inspect_database(args.database)
+            print(
+                "inspect_ok "
+                f"path={inspection.path} "
+                f"schema_version={inspection.schema_version} "
+                f"favorites={inspection.favorites} "
+                f"ratings={inspection.ratings} "
+                f"provider_budget_rows={inspection.provider_budget_rows}"
+            )
             return 0
 
         if args.command == "restore":
