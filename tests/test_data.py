@@ -3,6 +3,7 @@ from urllib.parse import parse_qs, urlsplit
 from app.data import PhotoRef, SourceRef, Venue
 from app.ui import (
     delete_data_confirmation_keyboard,
+    favorite_note_keyboard,
     filters_keyboard,
     mydata_keyboard,
     primary_photo_url,
@@ -605,4 +606,83 @@ def test_delete_data_confirmation_requires_explicit_confirmation() -> None:
     assert callbacks == [
         "privacy:delete:confirm",
         "privacy:delete:cancel",
+    ]
+
+
+
+def test_personal_note_card_is_explicit_and_html_escaped() -> None:
+    venue = Venue(
+        id="osm:node/note",
+        name="Note place",
+        category="cafe",
+        category_label="Кофейня",
+        latitude=58.01,
+        longitude=56.25,
+        source="osm",
+        source_id="node/note",
+        personal_note="<b>только моя</b>",
+    )
+
+    card = render_venue_card(venue)
+
+    assert "📝 Ваша заметка:" in card
+    assert "&lt;b&gt;только моя&lt;/b&gt;" in card
+    assert "<b>только моя</b>" not in card
+
+
+def test_venue_keyboard_exposes_note_only_in_favorites_context() -> None:
+    venue = Venue(
+        id="osm:node/note-button",
+        name="Note button",
+        category="cafe",
+        category_label="Кофейня",
+        latitude=58.01,
+        longitude=56.25,
+        source="osm",
+        source_id="node/note-button",
+    )
+
+    normal_labels = [
+        button.text
+        for row in venue_keyboard(venue).inline_keyboard
+        for button in row
+    ]
+    favorite_keyboard = venue_keyboard(venue, allow_note=True)
+    favorite_buttons = [
+        button
+        for row in favorite_keyboard.inline_keyboard
+        for button in row
+    ]
+
+    assert "📝 Заметка" not in normal_labels
+    note_button = next(
+        button
+        for button in favorite_buttons
+        if button.text == "📝 Заметка"
+    )
+    assert note_button.callback_data == "favorite_note:edit:osm:node/note-button"
+
+
+def test_favorite_note_keyboard_requires_explicit_remove_or_cancel() -> None:
+    without_note = favorite_note_keyboard(
+        "osm:node/1",
+        has_note=False,
+    )
+    assert [
+        button.callback_data
+        for row in without_note.inline_keyboard
+        for button in row
+    ] == ["favorite_note:cancel"]
+
+    with_note = favorite_note_keyboard(
+        "osm:node/1",
+        has_note=True,
+    )
+    assert [
+        button.callback_data
+        for row in with_note.inline_keyboard
+        for button in row
+    ] == [
+        "favorite_note:remove:osm:node/1",
+        "favorite_note:cancel",
     ]
