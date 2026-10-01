@@ -16,7 +16,8 @@ Each vote stores:
 - update timestamp.
 
 One user has one current vote per canonical venue key. Submitting another score updates that
-vote.
+vote. The rating dialog shows the user's current score when one exists and allows the user to
+remove it. Removal deletes that user's vote across every known provider alias for the merged venue.
 
 ## Venue identity and aliases
 
@@ -28,6 +29,10 @@ Otherwise the current primary provider identity is used.
 
 If one user has historical votes under more than one alias, only the newest vote contributes to
 the aggregate. This prevents a provider merge from double-counting one Telegram account.
+
+List enrichment is batched: all provider aliases for the selected venues are loaded in one SQLite
+query and aggregated in memory. This avoids one query per card while preserving the same alias and
+per-user deduplication rules.
 
 ## Presentation
 
