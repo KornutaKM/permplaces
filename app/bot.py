@@ -11,6 +11,10 @@ from aiogram.types import BufferedInputFile, CallbackQuery, Message, ReplyKeyboa
 
 from app.data import FieldSource, PhotoRef, SourceRef, Venue
 from app.districts import DISTRICT_BY_KEY, PERM_DISTRICTS, PERM_RELATION_ID
+from app.favorite_compare import (
+    favorite_compare_options,
+    favorite_from_compare_token,
+)
 from app.favorite_facets import (
     build_favorite_facets,
     category_from_token,
@@ -58,6 +62,8 @@ from app.ui import (
     delete_data_confirmation_keyboard,
     districts_keyboard,
     favorite_category_facets_keyboard,
+    favorite_compare_keyboard,
+    favorite_comparison_result_keyboard,
     favorite_cuisine_facets_keyboard,
     favorite_district_facets_keyboard,
     favorite_facets_keyboard,
@@ -72,6 +78,7 @@ from app.ui import (
     mydata_keyboard,
     primary_photo_url,
     rating_keyboard,
+    render_favorite_comparison,
     render_venue_card,
     results_keyboard,
     route_keyboard,
@@ -697,6 +704,22 @@ async def favorites(
         venues=venues,
     )
     if not venues:
+        await state.update_data(
+            results=[],
+            favorite_all_results=[],
+            favorite_filter=None,
+            favorite_search_query=None,
+            favorite_category_filter=None,
+            favorite_district_filter=None,
+            favorite_district_missing=False,
+            favorite_cuisine_filter=None,
+            favorite_cuisine_missing=False,
+            favorite_compare_primary_id=None,
+            favorite_sort=DEFAULT_FAVORITE_SORT,
+            result_index=0,
+            category="favorites",
+            result_scenario=None,
+        )
         await message.answer(
             "❤️ <b>Избранное пока пусто.</b>\n\n"
             "Откройте найденное место и нажмите «❤️ В избранное»."
@@ -714,6 +737,7 @@ async def favorites(
         favorite_district_missing=False,
         favorite_cuisine_filter=None,
         favorite_cuisine_missing=False,
+        favorite_compare_primary_id=None,
         favorite_sort=DEFAULT_FAVORITE_SORT,
         result_index=0,
         category="favorites",
@@ -1403,6 +1427,118 @@ async def favorite_tag_toggle(
         )
 
 
+@router.callback_query(F.data == "fcmp:start")
+async def favorite_compare_start(
+    callback: CallbackQuery,
+    state: FSMContext,
+) -> None:
+    await callback.answer()
+    if not callback.message:
+        return
+
+    data = await state.get_data()
+    context = _favorite_compare_context(
+        data,
+        use_current_result=True,
+    )
+    if context is None:
+        await callback.message.answer(
+            "Для сравнения нужны как минимум два актуальных избранных места."
+        )
+        return
+
+    venues, primary = context
+    options = favorite_compare_options(
+        venues,
+        primary_id=primary.id,
+    )
+    if not options:
+        await callback.message.answer(
+            "Для сравнения нужен ещё один сохранённый вариант."
+        )
+        return
+
+    await state.update_data(favorite_compare_primary_id=primary.id)
+    await callback.message.edit_reply_markup(
+        reply_markup=favorite_compare_keyboard(options)
+    )
+
+
+@router.callback_query(F.data == "fcmp:choose")
+async def favorite_compare_choose(
+    callback: CallbackQuery,
+    state: FSMContext,
+) -> None:
+    await callback.answer()
+    if not callback.message:
+        return
+
+    data = await state.get_data()
+    context = _favorite_compare_context(
+        data,
+        use_current_result=False,
+    )
+    if context is None:
+        await callback.message.answer(
+            "Список для сравнения устарел. Откройте избранное снова."
+        )
+        return
+
+    venues, primary = context
+    options = favorite_compare_options(
+        venues,
+        primary_id=primary.id,
+    )
+    if not options:
+        await callback.message.answer(
+            "Для сравнения нужен ещё один сохранённый вариант."
+        )
+        return
+
+    await callback.message.edit_reply_markup(
+        reply_markup=favorite_compare_keyboard(options)
+    )
+
+
+@router.callback_query(F.data.startswith("fcmp:pick:"))
+async def favorite_compare_selected(
+    callback: CallbackQuery,
+    state: FSMContext,
+) -> None:
+    if not callback.data:
+        return
+
+    data = await state.get_data()
+    context = _favorite_compare_context(
+        data,
+        use_current_result=False,
+    )
+    if context is None:
+        await callback.answer("Список для сравнения устарел.")
+        return
+
+    venues, primary = context
+    options = favorite_compare_options(
+        venues,
+        primary_id=primary.id,
+    )
+    token = callback.data.removeprefix("fcmp:pick:")
+    second = favorite_from_compare_token(options, token)
+    if second is None:
+        await callback.answer(
+            "Этот вариант сравнения устарел. Откройте список снова."
+        )
+        return
+
+    await callback.answer("Сравнение готово")
+    if callback.message:
+        await callback.message.edit_text(
+            render_favorite_comparison(primary, second),
+            reply_markup=favorite_comparison_result_keyboard(),
+            disable_web_page_preview=True,
+        )
+
+
 @router.callback_query(F.data == "fo:overview")
 async def favorite_overview(
     callback: CallbackQuery,
@@ -1444,6 +1580,58 @@ async def favorite_overview(
         ),
         disable_web_page_preview=True,
     )
+
+
+def _favorite_compare_context(
+    data: dict[str, object],
+    *,
+    use_current_result: bool,
+) -> tuple[list[Venue], Venue] | None:
+    all_results_raw = data.get("favorite_all_results")
+    if data.get("category") != "favorites" or not isinstance(all_results_raw, list):
+        return None
+
+    all_results = [
+        item
+        for item in all_results_raw
+        if isinstance(item, dict)
+    ]
+    all_venues = [_venue_from_dict(item) for item in all_results]
+    if len(all_venues) < 2:
+        return None
+
+    primary_id: str | None = None
+    if use_current_result:
+        results_raw = data.get("results")
+        index = data.get("result_index", 0)
+        if not isinstance(results_raw, list) or not isinstance(index, int):
+            return None
+        current_results = [
+            item
+            for item in results_raw
+            if isinstance(item, dict)
+        ]
+        if not current_results:
+            return None
+        index = max(0, min(index, len(current_results) - 1))
+        raw_id = current_results[index].get("id")
+        if isinstance(raw_id, str):
+            primary_id = raw_id
+    else:
+        raw_id = data.get("favorite_compare_primary_id")
+        if isinstance(raw_id, str):
+            primary_id = raw_id
+
+    if primary_id is None:
+        return None
+
+    primary = next(
+        (venue for venue in all_venues if venue.id == primary_id),
+        None,
+    )
+    if primary is None:
+        return None
+    return all_venues, primary
 
 
 def _favorite_facets_context(

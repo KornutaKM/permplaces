@@ -10,6 +10,7 @@ from aiogram.types import (
 
 from app.data import Venue
 from app.districts import PERM_DISTRICTS
+from app.favorite_compare import FavoriteCompareOption
 from app.favorite_facets import FavoriteFacets
 from app.favorite_sort import DEFAULT_FAVORITE_SORT, FAVORITE_SORT_LABELS
 from app.tags import FAVORITE_TAG_KEYS, FAVORITE_TAG_LABELS
@@ -234,6 +235,14 @@ def results_keyboard(
                 InlineKeyboardButton(
                     text="📊 Обзор избранного",
                     callback_data="fo:overview",
+                )
+            ]
+        )
+        rows.append(
+            [
+                InlineKeyboardButton(
+                    text="⚖️ Сравнить с другим избранным",
+                    callback_data="fcmp:start",
                 )
             ]
         )
@@ -668,6 +677,55 @@ def favorite_sort_keyboard(
     )
 
 
+def _truncate_button_label(value: str, *, limit: int = 44) -> str:
+    cleaned = " ".join(value.split())
+    if len(cleaned) <= limit:
+        return cleaned
+    return cleaned[: limit - 1].rstrip() + "…"
+
+
+def favorite_compare_keyboard(
+    options: tuple[FavoriteCompareOption, ...],
+) -> InlineKeyboardMarkup:
+    rows = [
+        [
+            InlineKeyboardButton(
+                text=_truncate_button_label(option.venue.name),
+                callback_data=f"fcmp:pick:{option.token}",
+            )
+        ]
+        for option in options
+    ]
+    rows.append(
+        [
+            InlineKeyboardButton(
+                text="← К результатам",
+                callback_data="results:current",
+            )
+        ]
+    )
+    return InlineKeyboardMarkup(inline_keyboard=rows)
+
+
+def favorite_comparison_result_keyboard() -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                InlineKeyboardButton(
+                    text="⚖️ Сравнить с другим",
+                    callback_data="fcmp:choose",
+                )
+            ],
+            [
+                InlineKeyboardButton(
+                    text="← К результатам",
+                    callback_data="results:current",
+                )
+            ],
+        ]
+    )
+
+
 def favorite_search_keyboard() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(
         inline_keyboard=[
@@ -932,7 +990,14 @@ def render_venue_card(venue: Venue, *, position: int = 1, total: int = 1) -> str
         ref.provider
         for ref in venue.source_refs
     } or {venue.source}
+    attribution = _provider_attribution(providers)
+    if attribution:
+        lines.extend(["", "<i>Источники: " + "; ".join(attribution) + "</i>"])
 
+    return "\n".join(lines)
+
+
+def _provider_attribution(providers: set[str]) -> list[str]:
     attribution: list[str] = []
     if "osm" in providers or "geoapify" in providers:
         attribution.append(
@@ -947,8 +1012,112 @@ def render_venue_card(venue: Venue, *, position: int = 1, total: int = 1) -> str
         attribution.append("2ГИС")
     if "foursquare" in providers:
         attribution.append('<a href="https://foursquare.com/">Powered by Foursquare</a>')
+    return attribution
 
+
+def _saved_bool(value: bool | None) -> str:
+    if value is True:
+        return "да"
+    if value is False:
+        return "нет"
+    return "не указано"
+
+
+def _saved_rating(venue: Venue) -> str:
+    if venue.rating is None or venue.rating_scale is None:
+        return "не указан"
+    value = f"{venue.rating:.1f}/{venue.rating_scale:g}"
+    if venue.review_count is not None:
+        value += f" ({venue.review_count})"
+    return value
+
+
+def _saved_community_rating(venue: Venue) -> str:
+    if (
+        venue.community_rating is None
+        or venue.community_rating_count is None
+        or venue.community_rating_count <= 0
+    ):
+        return "нет оценок"
+    return f"{venue.community_rating:.1f}/5 ({venue.community_rating_count})"
+
+
+def _saved_family_features(venue: Venue) -> str:
+    values: list[str] = []
+    if venue.kids_area is True:
+        values.append("детская зона")
+    if venue.highchair is True:
+        values.append("детский стульчик")
+    if venue.changing_table is True:
+        values.append("пеленальный столик")
+    return ", ".join(values) if values else "не указаны"
+
+
+def _saved_tags(venue: Venue) -> str:
+    labels = [
+        FAVORITE_TAG_LABELS[tag]
+        for tag in venue.personal_tags
+        if tag in FAVORITE_TAG_LABELS
+    ]
+    return ", ".join(labels) if labels else "нет"
+
+
+def _comparison_block(venue: Venue, *, number: int) -> list[str]:
+    cuisine = (
+        ", ".join(item.replace("_", " ") for item in venue.cuisine[:6])
+        if venue.cuisine
+        else "не указана"
+    )
+    return [
+        f"<b>{number}. {escape(venue.name)}</b>",
+        f"Тип: {escape(venue.category_label)}",
+        "Адрес: "
+        + (escape(venue.address) if venue.address else "не указан источником"),
+        "Район: "
+        + (escape(venue.district) if venue.district else "не указан источником"),
+        f"Кухня: {escape(cuisine)}",
+        "Часы: "
+        + (escape(venue.opening_hours) if venue.opening_hours else "не указаны"),
+        "Wi-Fi: " + _saved_bool(venue.wifi),
+        "Веранда: " + _saved_bool(venue.outdoor_seating),
+        "Для детей: " + escape(_saved_family_features(venue)),
+        "Цена: "
+        + (escape(venue.price_label) if venue.price_label else "не указана"),
+        "Рейтинг источника: " + escape(_saved_rating(venue)),
+        "PermPlaces: " + escape(_saved_community_rating(venue)),
+        "Ваши метки: " + escape(_saved_tags(venue)),
+    ]
+
+
+def render_favorite_comparison(first: Venue, second: Venue) -> str:
+    lines = [
+        "⚖️ <b>Сравнение избранного</b>",
+        "",
+        *_comparison_block(first, number=1),
+        "",
+        *_comparison_block(second, number=2),
+        "",
+        (
+            "<i>Сравнение использует сохранённые snapshot-поля и не определяет победителя. "
+            "Текущий open-state и distance не сравниваются. Рейтинги источников показываются "
+            "только вместе с их сохранённой шкалой; шкалы разных провайдеров не нормализуются.</i>"
+        ),
+    ]
+
+    providers: set[str] = set()
+    for venue in (first, second):
+        if venue.source_refs:
+            providers.update(ref.provider for ref in venue.source_refs)
+        else:
+            providers.add(venue.source)
+    attribution = _provider_attribution(providers)
     if attribution:
-        lines.extend(["", "<i>Источники: " + "; ".join(attribution) + "</i>"])
-
+        lines.extend(
+            [
+                "",
+                "<i>Источники сохранённых карточек: "
+                + "; ".join(attribution)
+                + "</i>",
+            ]
+        )
     return "\n".join(lines)
