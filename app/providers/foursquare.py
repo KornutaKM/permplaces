@@ -14,6 +14,7 @@ from app.data import PhotoRef, Venue
 from app.filters import PlaceFilters
 from app.observability import endpoint_label
 from app.providers.base import ProviderError
+from app.providers.capabilities import FOURSQUARE_CAPABILITIES
 
 logger = logging.getLogger(__name__)
 
@@ -162,6 +163,8 @@ def _photo_refs(value: object) -> tuple[PhotoRef, ...]:
 
 
 class FoursquareProvider:
+    capabilities = FOURSQUARE_CAPABILITIES
+
     def __init__(
         self,
         *,
