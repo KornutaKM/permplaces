@@ -11,6 +11,7 @@ from app.db_admin import (
     audit_database,
     backup_database,
     inspect_database,
+    preflight_database,
     repair_favorite_aliases,
     restore_database,
     verify_database,
@@ -579,3 +580,167 @@ def test_metadata_audit_tolerates_legacy_database_without_metadata_tables(
     assert audit.invalid_notes is None
     assert audit.orphan_tags is None
     assert audit.invalid_tags is None
+
+
+
+def test_preflight_database_reports_current_database_ready(tmp_path: Path) -> None:
+    database = tmp_path / "permplaces.db"
+    asyncio.run(initialize_database(str(database)))
+
+    preflight = preflight_database(database)
+
+    assert preflight.ready is True
+    assert preflight.status == "ok"
+    assert preflight.expected_schema_version == 4
+    assert preflight.inspection.schema_version == 4
+    assert preflight.missing_tables == ()
+    assert preflight.missing_columns == ()
+    assert preflight.missing_indexes == ()
+    assert preflight.audit is not None
+    assert preflight.audit.consistent is True
+
+
+def test_preflight_database_reports_migration_required_without_audit(
+    tmp_path: Path,
+) -> None:
+    database = tmp_path / "permplaces.db"
+    asyncio.run(initialize_database(str(database)))
+    with sqlite3.connect(database) as connection:
+        connection.execute("PRAGMA user_version = 3")
+        connection.commit()
+
+    preflight = preflight_database(database)
+
+    assert preflight.ready is False
+    assert preflight.status == "migration_required"
+    assert preflight.inspection.schema_version == 3
+    assert preflight.audit is None
+
+
+def test_preflight_database_reports_newer_schema_without_audit(
+    tmp_path: Path,
+) -> None:
+    database = tmp_path / "permplaces.db"
+    asyncio.run(initialize_database(str(database)))
+    with sqlite3.connect(database) as connection:
+        connection.execute("PRAGMA user_version = 5")
+        connection.commit()
+
+    preflight = preflight_database(database)
+
+    assert preflight.ready is False
+    assert preflight.status == "schema_newer"
+    assert preflight.inspection.schema_version == 5
+    assert preflight.audit is None
+
+
+def test_preflight_database_detects_missing_required_table(tmp_path: Path) -> None:
+    database = tmp_path / "permplaces.db"
+    asyncio.run(initialize_database(str(database)))
+    with sqlite3.connect(database) as connection:
+        connection.execute("DROP TABLE favorite_tags")
+        connection.commit()
+
+    preflight = preflight_database(database)
+
+    assert preflight.status == "schema_drift"
+    assert preflight.ready is False
+    assert preflight.missing_tables == ("favorite_tags",)
+    assert preflight.audit is None
+
+
+def test_preflight_database_detects_missing_required_column(tmp_path: Path) -> None:
+    database = tmp_path / "permplaces.db"
+    asyncio.run(initialize_database(str(database)))
+    with sqlite3.connect(database) as connection:
+        connection.execute("DROP TABLE favorite_notes")
+        connection.execute(
+            """
+            CREATE TABLE favorite_notes (
+                user_id INTEGER NOT NULL,
+                identity_key TEXT NOT NULL,
+                updated_at_ns INTEGER NOT NULL,
+                PRIMARY KEY (user_id, identity_key)
+            )
+            """
+        )
+        connection.commit()
+
+    preflight = preflight_database(database)
+
+    assert preflight.status == "schema_drift"
+    assert "favorite_notes.note" in preflight.missing_columns
+    assert preflight.audit is None
+
+
+def test_preflight_database_detects_missing_required_index(tmp_path: Path) -> None:
+    database = tmp_path / "permplaces.db"
+    asyncio.run(initialize_database(str(database)))
+    with sqlite3.connect(database) as connection:
+        connection.execute("DROP INDEX idx_favorite_tags_identity_key")
+        connection.commit()
+
+    preflight = preflight_database(database)
+
+    assert preflight.status == "schema_drift"
+    assert preflight.missing_indexes == ("idx_favorite_tags_identity_key",)
+    assert preflight.audit is not None
+    assert preflight.audit.consistent is True
+
+
+def test_preflight_database_reports_data_drift_after_schema_passes(
+    tmp_path: Path,
+) -> None:
+    database = tmp_path / "permplaces.db"
+    _create_auditable_database(database)
+    with sqlite3.connect(database) as connection:
+        connection.execute("DELETE FROM favorite_identity_aliases")
+        connection.commit()
+
+    preflight = preflight_database(database)
+
+    assert preflight.missing_tables == ()
+    assert preflight.missing_columns == ()
+    assert preflight.missing_indexes == ()
+    assert preflight.audit is not None
+    assert preflight.audit.consistent is False
+    assert preflight.audit.missing_aliases == 2
+    assert preflight.status == "data_drift"
+    assert preflight.ready is False
+
+
+def test_preflight_database_is_read_only_for_user_rows(tmp_path: Path) -> None:
+    database = tmp_path / "permplaces.db"
+    _create_auditable_database(database)
+    with sqlite3.connect(database) as connection:
+        connection.execute(
+            """
+            INSERT INTO favorite_notes (
+                user_id,
+                identity_key,
+                note,
+                updated_at_ns
+            )
+            VALUES (10, 'osm:node/audit', 'keep me', 100)
+            """
+        )
+        connection.commit()
+
+    preflight = preflight_database(database)
+
+    assert preflight.ready is True
+    with sqlite3.connect(database) as connection:
+        favorite_row = connection.execute(
+            "SELECT venue_id, payload FROM favorites WHERE user_id = 10"
+        ).fetchone()
+        note_row = connection.execute(
+            """
+            SELECT identity_key, note, updated_at_ns
+            FROM favorite_notes
+            WHERE user_id = 10
+            """
+        ).fetchone()
+
+    assert favorite_row is not None
+    assert favorite_row[0] == "geoapify:place-audit"
+    assert note_row == ("osm:node/audit", "keep me", 100)
