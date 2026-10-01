@@ -9,7 +9,7 @@ import aiosqlite
 from app.database import initialize_database
 
 USER_DATA_EXPORT_FILENAME = "permplaces-mydata.json"
-USER_DATA_EXPORT_FORMAT_VERSION = 2
+USER_DATA_EXPORT_FORMAT_VERSION = 3
 
 
 @dataclass(frozen=True, slots=True)
@@ -17,10 +17,11 @@ class UserDataSummary:
     favorites: int
     ratings: int
     notes: int
+    tags: int
 
     @property
     def total_rows(self) -> int:
-        return self.favorites + self.ratings + self.notes
+        return self.favorites + self.ratings + self.notes + self.tags
 
 
 @dataclass(frozen=True, slots=True)
@@ -29,6 +30,7 @@ class UserDataExport:
     favorites: int
     ratings: int
     notes: int
+    tags: int
 
 
 def _updated_at_utc(value: object) -> str | None:
@@ -102,10 +104,18 @@ class UserDataRepository:
             note_row = await note_cursor.fetchone()
             await note_cursor.close()
 
+            tag_cursor = await database.execute(
+                "SELECT COUNT(*) FROM favorite_tags WHERE user_id = ?",
+                (user_id,),
+            )
+            tag_row = await tag_cursor.fetchone()
+            await tag_cursor.close()
+
         return UserDataSummary(
             favorites=int(favorite_row[0]) if favorite_row is not None else 0,
             ratings=int(rating_row[0]) if rating_row is not None else 0,
             notes=int(note_row[0]) if note_row is not None else 0,
+            tags=int(tag_row[0]) if tag_row is not None else 0,
         )
 
     async def export_for_user(self, *, user_id: int) -> UserDataExport:
@@ -149,6 +159,18 @@ class UserDataRepository:
                 )
                 note_rows = await note_cursor.fetchall()
                 await note_cursor.close()
+
+                tag_cursor = await database.execute(
+                    """
+                    SELECT identity_key, tag, updated_at_ns
+                    FROM favorite_tags
+                    WHERE user_id = ?
+                    ORDER BY updated_at_ns ASC, identity_key ASC, tag ASC
+                    """,
+                    (user_id,),
+                )
+                tag_rows = await tag_cursor.fetchall()
+                await tag_cursor.close()
                 await database.commit()
             except BaseException:
                 await database.rollback()
@@ -186,12 +208,22 @@ class UserDataRepository:
             for identity_key, note, updated_at_ns in note_rows
         ]
 
+        tags = [
+            {
+                "identity_key": identity_key if isinstance(identity_key, str) else None,
+                "tag": tag if isinstance(tag, str) else None,
+                "updated_at_utc": _updated_at_utc(updated_at_ns),
+            }
+            for identity_key, tag, updated_at_ns in tag_rows
+        ]
+
         payload = {
             "format": "permplaces-user-data",
             "format_version": USER_DATA_EXPORT_FORMAT_VERSION,
             "favorites": favorites,
             "community_ratings": ratings,
             "favorite_notes": notes,
+            "favorite_tags": tags,
         }
         content = (
             json.dumps(
@@ -208,10 +240,11 @@ class UserDataRepository:
             favorites=len(favorites),
             ratings=len(ratings),
             notes=len(notes),
+            tags=len(tags),
         )
 
     async def delete_for_user(self, *, user_id: int) -> UserDataSummary:
-        """Delete favorites, ratings and personal notes in one SQLite transaction."""
+        """Delete favorites, ratings, notes and tags in one SQLite transaction."""
 
         async with aiosqlite.connect(self._database_path) as database:
             await database.execute("PRAGMA busy_timeout=5000")
@@ -238,6 +271,17 @@ class UserDataRepository:
                 note_row = await note_cursor.fetchone()
                 await note_cursor.close()
 
+                tag_cursor = await database.execute(
+                    "SELECT COUNT(*) FROM favorite_tags WHERE user_id = ?",
+                    (user_id,),
+                )
+                tag_row = await tag_cursor.fetchone()
+                await tag_cursor.close()
+
+                await database.execute(
+                    "DELETE FROM favorite_tags WHERE user_id = ?",
+                    (user_id,),
+                )
                 await database.execute(
                     "DELETE FROM favorite_notes WHERE user_id = ?",
                     (user_id,),
@@ -263,4 +307,5 @@ class UserDataRepository:
             favorites=int(favorite_row[0]) if favorite_row is not None else 0,
             ratings=int(rating_row[0]) if rating_row is not None else 0,
             notes=int(note_row[0]) if note_row is not None else 0,
+            tags=int(tag_row[0]) if tag_row is not None else 0,
         )
