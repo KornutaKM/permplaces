@@ -83,6 +83,16 @@ async def initialize_database(database_path: str) -> None:
                 )
                 """
             )
+            await _require_columns(
+                database,
+                "favorites",
+                {"user_id", "venue_id", "payload", "created_at"},
+            )
+            await _require_columns(
+                database,
+                "venue_ratings",
+                {"user_id", "venue_key", "score", "updated_at_ns"},
+            )
             await database.execute(
                 """
                 CREATE INDEX IF NOT EXISTS idx_venue_ratings_venue_key
@@ -98,17 +108,6 @@ async def initialize_database(database_path: str) -> None:
                     PRIMARY KEY (provider, day)
                 )
                 """
-            )
-
-            await _require_columns(
-                database,
-                "favorites",
-                {"user_id", "venue_id", "payload", "created_at"},
-            )
-            await _require_columns(
-                database,
-                "venue_ratings",
-                {"user_id", "venue_key", "score", "updated_at_ns"},
             )
             await _require_columns(
                 database,
