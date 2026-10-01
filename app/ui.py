@@ -220,6 +220,14 @@ def results_keyboard(
                 )
             ]
         )
+        rows.append(
+            [
+                InlineKeyboardButton(
+                    text="📊 Обзор избранного",
+                    callback_data="fo:overview",
+                )
+            ]
+        )
     if navigation:
         rows.append(navigation)
     rows.append([InlineKeyboardButton(text="← К категориям", callback_data="nav:categories")])
@@ -381,6 +389,44 @@ def favorite_note_keyboard(
         ]
     )
     return InlineKeyboardMarkup(inline_keyboard=rows)
+
+
+def favorite_overview_keyboard(
+    *,
+    active_sort: str,
+) -> InlineKeyboardMarkup:
+    sort_label = FAVORITE_SORT_LABELS.get(
+        active_sort,
+        FAVORITE_SORT_LABELS[DEFAULT_FAVORITE_SORT],
+    )
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                InlineKeyboardButton(
+                    text="🏷 Фильтр по метке",
+                    callback_data="ff:menu",
+                )
+            ],
+            [
+                InlineKeyboardButton(
+                    text="🔎 Поиск в избранном",
+                    callback_data="fs:start",
+                )
+            ],
+            [
+                InlineKeyboardButton(
+                    text=f"↕️ Сортировка: {sort_label}",
+                    callback_data="fso:menu",
+                )
+            ],
+            [
+                InlineKeyboardButton(
+                    text="← К результатам",
+                    callback_data="results:current",
+                )
+            ],
+        ]
+    )
 
 
 def favorite_sort_keyboard(

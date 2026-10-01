@@ -11,6 +11,10 @@ from aiogram.types import BufferedInputFile, CallbackQuery, Message, ReplyKeyboa
 
 from app.data import FieldSource, PhotoRef, SourceRef, Venue
 from app.districts import DISTRICT_BY_KEY, PERM_DISTRICTS, PERM_RELATION_ID
+from app.favorite_overview import (
+    build_favorite_overview,
+    render_favorite_overview,
+)
 from app.favorite_search import (
     MAX_FAVORITE_SEARCH_LENGTH,
     search_favorites,
@@ -48,6 +52,7 @@ from app.ui import (
     districts_keyboard,
     favorite_filter_keyboard,
     favorite_note_keyboard,
+    favorite_overview_keyboard,
     favorite_search_keyboard,
     favorite_sort_keyboard,
     favorite_tags_keyboard,
@@ -1324,6 +1329,49 @@ async def favorite_tag_toggle(
                 current_tags=ordered_tags,
             )
         )
+
+
+@router.callback_query(F.data == "fo:overview")
+async def favorite_overview(
+    callback: CallbackQuery,
+    state: FSMContext,
+) -> None:
+    await callback.answer()
+    if not callback.message:
+        return
+
+    data = await state.get_data()
+    all_results_raw = data.get("favorite_all_results")
+    if data.get("category") != "favorites" or not isinstance(all_results_raw, list):
+        await callback.message.answer(
+            "Обзор доступен только для актуального списка избранного."
+        )
+        return
+
+    venues = [
+        _venue_from_dict(item)
+        for item in all_results_raw
+        if isinstance(item, dict)
+    ]
+    if not venues:
+        await callback.message.edit_text(
+            "❤️ <b>Избранное пока пусто.</b>\n\n"
+            "Сохраните новое место из результатов поиска."
+        )
+        return
+
+    active_sort = (
+        data.get("favorite_sort")
+        if isinstance(data.get("favorite_sort"), str)
+        else DEFAULT_FAVORITE_SORT
+    )
+    await callback.message.edit_text(
+        render_favorite_overview(build_favorite_overview(venues)),
+        reply_markup=favorite_overview_keyboard(
+            active_sort=active_sort,
+        ),
+        disable_web_page_preview=True,
+    )
 
 
 @router.callback_query(F.data == "ff:menu")
