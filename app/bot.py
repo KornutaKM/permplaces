@@ -2,7 +2,7 @@ from dataclasses import asdict
 
 from aiogram import F, Router
 from aiogram.exceptions import TelegramBadRequest
-from aiogram.filters import CommandStart
+from aiogram.filters import Command, CommandStart
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.types import CallbackQuery, Message, ReplyKeyboardRemove
@@ -10,6 +10,7 @@ from aiogram.types import CallbackQuery, Message, ReplyKeyboardRemove
 from app.data import FieldSource, PhotoRef, SourceRef, Venue
 from app.districts import DISTRICT_BY_KEY, PERM_DISTRICTS, PERM_RELATION_ID
 from app.filters import PlaceFilters
+from app.providers.capabilities import ProviderStatus, render_provider_statuses
 from app.providers.overpass import ProviderError
 from app.query import parse_search_query, plan_search_query
 from app.scenarios import (
@@ -239,6 +240,17 @@ async def start(message: Message, state: FSMContext) -> None:
         filter_open_late=False,
     )
     await message.answer(WELCOME, reply_markup=home_keyboard())
+
+
+@router.message(Command("providers"))
+async def provider_diagnostics(
+    message: Message,
+    provider_statuses: tuple[ProviderStatus, ...],
+) -> None:
+    await message.answer(
+        render_provider_statuses(provider_statuses),
+        disable_web_page_preview=True,
+    )
 
 
 @router.message(F.location)
