@@ -6,6 +6,7 @@ from app.ui import (
     favorite_filter_keyboard,
     favorite_note_keyboard,
     favorite_search_keyboard,
+    favorite_sort_keyboard,
     favorite_tags_keyboard,
     filters_keyboard,
     mydata_keyboard,
@@ -835,3 +836,36 @@ def test_favorite_results_keyboard_marks_active_search_and_clear_action() -> Non
     assert "🧹 Сбросить поиск" in labels
     assert "fs:start" in callbacks
     assert "fs:clear" in callbacks
+
+
+
+def test_favorite_sort_keyboard_marks_active_mode() -> None:
+    keyboard = favorite_sort_keyboard(active_sort="tags")
+    buttons = [
+        button
+        for row in keyboard.inline_keyboard
+        for button in row
+    ]
+    labels = [button.text for button in buttons]
+    callbacks = [button.callback_data for button in buttons]
+
+    assert "✅ 🏷 Сначала с метками" in labels
+    assert "fso:tags" in callbacks
+    assert callbacks[-1] == "results:current"
+
+
+def test_favorites_results_keyboard_shows_current_sort() -> None:
+    keyboard = results_keyboard(
+        "osm:node/sorted",
+        can_previous=False,
+        can_next=False,
+        favorites_mode=True,
+        active_favorite_sort="name",
+    )
+    labels = [
+        button.text
+        for row in keyboard.inline_keyboard
+        for button in row
+    ]
+
+    assert "↕️ Сортировка: 🔤 По названию" in labels
