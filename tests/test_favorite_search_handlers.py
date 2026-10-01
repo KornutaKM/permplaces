@@ -85,6 +85,9 @@ async def test_favorite_search_text_searches_name_note_and_tags_locally() -> Non
             "results": all_results,
             "favorite_filter": "friends",
             "favorite_search_query": None,
+            "favorite_category_filter": "cafe",
+            "favorite_district_filter": "Ленинский",
+            "favorite_district_missing": False,
             "result_index": 0,
         }
     )
@@ -102,6 +105,9 @@ async def test_favorite_search_text_searches_name_note_and_tags_locally() -> Non
     assert state.state is None
     assert state.data["favorite_filter"] is None
     assert state.data["favorite_search_query"] == "для работы"
+    assert state.data["favorite_category_filter"] is None
+    assert state.data["favorite_district_filter"] is None
+    assert state.data["favorite_district_missing"] is False
     assert len(state.data["results"]) == 1  # type: ignore[arg-type]
     assert state.data["results"][0]["id"] == first.id  # type: ignore[index]
     rendered = answer.await_args.args[0]
@@ -153,6 +159,9 @@ async def test_favorite_search_clear_restores_all_results_and_resets_local_views
             "results": [asdict(second)],
             "favorite_filter": None,
             "favorite_search_query": "второе",
+            "favorite_category_filter": "cafe",
+            "favorite_district_filter": None,
+            "favorite_district_missing": False,
             "result_index": 0,
             "result_scenario": None,
         }
@@ -170,6 +179,9 @@ async def test_favorite_search_clear_restores_all_results_and_resets_local_views
 
     assert state.data["favorite_search_query"] is None
     assert state.data["favorite_filter"] is None
+    assert state.data["favorite_category_filter"] is None
+    assert state.data["favorite_district_filter"] is None
+    assert state.data["favorite_district_missing"] is False
     assert len(state.data["results"]) == 2  # type: ignore[arg-type]
     callback.answer.assert_awaited_once_with("Поиск сброшен")
     edit_text.assert_awaited_once()
